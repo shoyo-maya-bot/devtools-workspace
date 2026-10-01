@@ -1,0 +1,39 @@
+name: 新規プロンプト
+description: 新しいプロンプトの追加を提案する
+title: "[new] "
+labels: [prompt, new]
+body:
+  - type: markdown
+    attributes:
+      value: 固有名・機密は書かないでください。一般化した表現で記載します。
+  - type: input
+    id: title
+    attributes:
+      label: タイトル
+      placeholder: 例 API 差分抽出ツール
+    validations:
+      required: true
+  - type: dropdown
+    id: category
+    attributes:
+      label: 分類
+      options: [foundation, docs, ai-dev, tools]
+    validations:
+      required: true
+  - type: textarea
+    id: purpose
+    attributes:
+      label: 目的・想定利用者
+    validations:
+      required: true
+  - type: textarea
+    id: outputs
+    attributes:
+      label: 期待する出力（生成物）
+  - type: checkboxes
+    id: principles
+    attributes:
+      label: 原則の確認
+      options:
+        - label: 特定の勤務先・客先の資産を写したものではない
+          required: true

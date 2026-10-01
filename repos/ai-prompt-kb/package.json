@@ -1,0 +1,15 @@
+{
+  "name": "ai-prompt-kb",
+  "private": true,
+  "description": "Markdown / 日本語文章の lint（CI とローカルで共通）",
+  "scripts": {
+    "lint": "npm run lint:md && npm run lint:text",
+    "lint:md": "markdownlint-cli2",
+    "lint:text": "textlint \"docs/**/*.md\" \"*.md\""
+  },
+  "devDependencies": {
+    "markdownlint-cli2": "^0.22.1",
+    "textlint": "^14.4.0",
+    "textlint-rule-preset-ja-technical-writing": "^10.0.1"
+  }
+}

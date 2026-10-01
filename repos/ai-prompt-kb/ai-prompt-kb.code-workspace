@@ -1,0 +1,19 @@
+{
+  "folders": [{ "path": "." }],
+  "settings": {
+    "files.eol": "\n",
+    "files.encoding": "utf8",
+    "[markdown]": { "editor.wordWrap": "on" },
+    "yaml.schemas": {},
+    "chat.promptFiles": true
+  },
+  "extensions": {
+    "recommendations": [
+      "DavidAnson.vscode-markdownlint",
+      "3w36zj6.textlint",
+      "redhat.vscode-yaml",
+      "ms-python.python",
+      "EditorConfig.EditorConfig"
+    ]
+  }
+}

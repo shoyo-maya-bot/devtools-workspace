@@ -1,0 +1,27 @@
+name: 新規ツールの提案
+description: 新しい開発支援ツール（1 ツール = 1 リポジトリ）を提案する
+labels: [new-tool]
+body:
+  - type: input
+    id: name
+    attributes:
+      label: ツール名（リポジトリ名・ケバブケース）
+      placeholder: api-spec-diff
+    validations:
+      required: true
+  - type: textarea
+    id: responsibility
+    attributes:
+      label: 責務（1 文で。やらないことも書く）
+      placeholder: OpenAPI 仕様 2 版の差分を抽出する。仕様の検証は行わない。
+    validations:
+      required: true
+  - type: textarea
+    id: io
+    attributes:
+      label: 入力と出力
+  - type: dropdown
+    id: external
+    attributes:
+      label: 外部 API 連携
+      options: [なし, あり（devtools_common.httpclient を使う）]

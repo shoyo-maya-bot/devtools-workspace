@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "tool-name config",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "max_line_length": {"type": "integer", "minimum": 1, "description": "1 行の最大文字数"},
+    "encoding": {"type": "string", "description": "入力の文字コード（既定 utf-8）"},
+    "forbidden": {
+      "type": "array",
+      "description": "禁止する表現（正規表現）",
+      "items": {
+        "type": "object",
+        "required": ["pattern"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string"},
+          "pattern": {"type": "string"},
+          "severity": {"enum": ["error", "warning", "info"]},
+          "message": {"type": "string"},
+          "suggestion": {"type": "string"}
+        }
+      }
+    }
+  }
+}

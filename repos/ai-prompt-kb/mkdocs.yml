@@ -1,0 +1,113 @@
+site_name: AI 活用プロンプト集
+site_description: クリーンルーム / 一般ベストプラクティス版の再現プロンプト集
+# TODO: 自分のリポジトリに合わせて変更
+site_url: https://<your-org>.github.io/ai-prompt-kb/
+repo_url: https://github.com/<your-org>/ai-prompt-kb
+repo_name: ai-prompt-kb
+edit_uri: edit/main/docs/
+copyright: 固有名・機密は収録していません。利用条件は所属組織の規程に従ってください。
+
+docs_dir: docs
+exclude_docs: |
+  templates/
+  includes/
+
+theme:
+  name: material
+  language: ja
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: ダークモードに切り替え
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: ライトモードに切り替え
+  features:
+    - navigation.instant
+    - navigation.sections
+    - navigation.tabs
+    - navigation.top
+    - navigation.indexes
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.action.edit
+    - toc.follow
+
+# 章立ては明示定義（自動収集に頼らず、PR でレビュー可能にする）
+nav:
+  - ホーム: index.md
+  - ガイド:
+      - guides/index.md
+      - 使い方: guides/how-to-use.md
+      - 原則: guides/principles.md
+      - 執筆ガイド: guides/writing-prompts.md
+      - ライフサイクル: guides/lifecycle.md
+  - プロンプト:
+      - prompts/index.md
+      - 00 リポジトリ運用・土台: prompts/00-repo-operations.md
+      - 01 MkDocs 構成・命名規則: prompts/01-docs-mkdocs.md
+      - 02 プレビューサイト: prompts/02-preview-site.md
+      - 03 AI 駆動コード生成: prompts/03-ai-codegen-framework.md
+      - 04 開発者向け学習資料: prompts/04-learning-materials.md
+      - 05 開発支援ツール集（マルチレポ）: prompts/05-internal-tools-suite.md
+      - 06 Office レビュー: prompts/06-office-review-tool.md
+      - 07 スライド生成/変換: prompts/07-slide-tool.md
+      - 08 ドキュメント Markdown 化: prompts/08-doc-to-markdown.md
+      - 09 項目間検証: prompts/09-field-validation.md
+  - 活用ナレッジ:
+      - knowledge/index.md
+      - 事例: knowledge/cases/index.md
+      - 教訓: knowledge/lessons/index.md
+  - タグ: tags.md
+
+plugins:
+  - search:
+      lang: ja
+  - tags
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets:
+      base_path: [docs/includes]
+      auto_append: [abbreviations.md]
+      check_paths: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+
+extra_css:
+  - stylesheets/extra.css
+
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
