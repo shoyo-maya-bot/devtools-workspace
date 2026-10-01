@@ -21,30 +21,30 @@ flowchart TB
   WS["devtools-workspace<br/>マニフェスト・一括操作・パイプライン例"]
 
   TPL -. Use this template .-> NEW
-  D2M -- "Git タグ依存 @vX.Y.Z" --> COM
-  FV -- "Git タグ依存" --> COM
-  NEW -- "Git タグ依存" --> COM
-  D2M -. "CI: uses …@v1" .-> GH
-  FV -. "CI" .-> GH
-  COM -. "CI" .-> GH
+  D2M -- "Git 依存（コミット SHA で固定）" --> COM
+  FV -- "Git 依存（SHA 固定）" --> COM
+  NEW -- "Git 依存（SHA 固定）" --> COM
+  D2M -. "CI: uses …@SHA" .-> WS
+  FV -. "CI" .-> WS
+  COM -. "CI" .-> WS
   WS -. "repos.yaml で一覧化" .-> tools
   D2M == "Markdown の表（別プロセス）" ==> FV
 ```
 
 | リポジトリ | 役割 | 変更の頻度 | 版の固定方法 |
 |---|---|---|---|
-| `.github` | 組織既定の CONTRIBUTING / SECURITY / PR・Issue テンプレート、再利用ワークフロー | 低 | `@v1`（メジャータグ） |
+| `.github` | 組織既定の CONTRIBUTING / SECURITY / PR・Issue テンプレート（任意） | 低 | main |
 | `devtools-template` | 新規ツールの雛形。lint 設定・CI 呼び出し・ディレクトリ構成の標準 | 低 | 複製時点のコピー（以後は PR で反映） |
-| `devtools-common` | 共有ライブラリ | 中 | 各ツールが `@vX.Y.Z` タグで依存 |
-| 各ツール | 単機能 CLI | 高 | 利用者は `pipx install …@vX.Y.Z` |
-| `devtools-workspace` | マニフェスト（`repos.yaml`）・bootstrap・VS Code ワークスペース・パイプライン例 | 中 | main |
+| `devtools-common` | 共有ライブラリ | 中 | 各ツールがコミット SHA で固定して依存 |
+| 各ツール | 単機能 CLI | 高 | 利用者は clone（main）または `pipx install …@<SHA>` |
+| `devtools-workspace` | マニフェスト（`repos.yaml`）・bootstrap・VS Code ワークスペース・パイプライン例・**共通 CI（再利用ワークフロー）** | 中 | 各ツールが SHA で固定して CI を呼ぶ |
 
 ## 共通化のやり方（フォルダ共有はしない）
 
 | 共通化したいもの | 方法 |
 |---|---|
-| 処理（CLI 規約・レポート・ログ・一時ファイル・外部 API） | `devtools-common` をタグ付きで公開し、各ツールが依存として取り込む |
-| CI（lint / test / SAST / 依存脆弱性） | `.github` の再利用ワークフローを `uses: shoyo-maya-bot/.github/...@v1` で呼ぶ |
+| 処理（CLI 規約・レポート・ログ・一時ファイル・外部 API） | `devtools-common` を各ツールが Git 依存（コミット SHA 固定）で取り込む |
+| CI（lint / test / SAST / 依存脆弱性） | `devtools-workspace` の再利用ワークフローを `uses: shoyo-maya-bot/devtools-workspace/.github/workflows/python-ci.yml@<SHA>` で呼ぶ |
 | lint / format 設定 | テンプレートの `pyproject.toml`（`[tool.ruff]`）から配布 |
 | PR・Issue テンプレート、CONTRIBUTING、SECURITY | `.github` リポの既定ファイル |
 | 依存の追随 | 各リポの Dependabot（pip・github-actions） |
@@ -80,3 +80,9 @@ flowchart TB
 親フォルダに兄弟として clone し（`scripts/bootstrap.py clone`）、1 つの仮想環境に editable で入れます
 （`scripts/bootstrap.py install`）。このとき各ツールの Git タグ依存 `devtools-common @ git+…` は
 ローカルの `devtools-common` で置き換わるため、共有ライブラリとツールを同時に変更して試せます。
+
+## 版の固定はタグではなくコミット SHA
+
+共有ライブラリと共通 CI は、タグ（`v0.2.0` など）ではなく **コミット SHA** で固定して参照します。
+タグは後から付け替えられますが SHA は変えられないため、同じ SHA なら必ず同じ中身になります（GitHub も Actions の参照は SHA 固定を推奨）。
+更新するときは、参照先の新しい SHA に書き換える PR を出します。リリースの目印としてのタグは任意です。

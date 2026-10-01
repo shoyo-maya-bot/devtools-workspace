@@ -14,7 +14,7 @@
 | [field-validation](https://github.com/shoyo-maya-bot/field-validation) | ツール | `fieldcheck` | 表 / YAML / JSON の項目間整合性を YAML の宣言的ルールで検証（検証のみ） |
 | [devtools-common](https://github.com/shoyo-maya-bot/devtools-common) | 共有ライブラリ | – | CLI 規約（終了コード・出力形式）・ログ・一時ファイル・HTTP（レート制限/リトライ）・レポート |
 | [devtools-template](https://github.com/shoyo-maya-bot/devtools-template) | テンプレート | – | 新規ツールの雛形（Use this template → `init_tool.py`） |
-| [.github](https://github.com/shoyo-maya-bot/.github) | 組織標準 | – | 共通 CI / リリースの再利用ワークフロー、PR・Issue テンプレート |
+| [.github](https://github.com/shoyo-maya-bot/.github) | 組織標準（任意） | – | PR・Issue テンプレート、CONTRIBUTING |
 
 一覧の正は [repos.yaml](repos.yaml) です（`python scripts/bootstrap.py list` で表を出力）。
 設計の考え方は [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) を参照してください。
@@ -98,9 +98,11 @@ GitHub アカウント `shoyo-maya-bot` に、次の 6 リポジトリを公開�
 別の組織に移すときは、各リポジトリの `shoyo-maya-bot` を置き換えてください（`pyproject.toml`、`ci.yml`、`release.yml`、README、`repos.yaml`）。
 
 - [x] 組織名を `shoyo-maya-bot` に設定
-- [x] 6 リポジトリを作成して push（`.github` はリポジトリ名そのものが `.github`）
-- [x] `.github` リポに `v1` タグ（各リポの CI が `@v1` で参照）
-- [x] `devtools-common` に `v0.2.0` タグ（各ツールが依存）
+- [x] ツールのリポジトリを作成して push
+- [x] 共通 CI は `devtools-workspace` に置き、各リポからコミット SHA で固定して呼ぶ（タグ不要）
+- [x] 各ツールは `devtools-common` をコミット SHA で固定して依存（タグ不要）
+- [ ] （任意）`.github` リポに PR・Issue テンプレートを置く
+- [ ] （任意）リリースの目印としてタグを打つ
 - [ ] 非公開リポにする場合は Secrets `DEPS_TOKEN`（読み取り専用）を設定し、`.github` のワークフローを呼べるようにする（公開リポなら不要）
 - [ ] `devtools-template` を Settings → **Template repository** に設定
 - [ ] 各リポの `main` にブランチ保護（CI 必須・レビュー必須）
