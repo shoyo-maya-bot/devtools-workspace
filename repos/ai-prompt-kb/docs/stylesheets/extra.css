@@ -1,0 +1,5 @@
+/* プロンプト本文（コードブロック）を読みやすく折り返す */
+.md-typeset pre > code {
+  white-space: pre-wrap;
+  word-break: break-word;
+}

@@ -1,0 +1,22 @@
+# build outputs
+site/
+dist/
+__pycache__/
+*.pyc
+.cache/
+
+# environments
+.venv/
+venv/
+node_modules/
+
+# secrets（テンプレートは .env.example）
+.env
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+*.swp

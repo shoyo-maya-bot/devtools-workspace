@@ -1,0 +1,36 @@
+# マルチレポのマニフェスト（ツール一覧の正の情報源）
+# 新しいツールを公開したら、ここに 1 件追加する（bootstrap・VS Code ワークスペース・README の一覧がこれを使う）
+org: <your-org>
+host: https://github.com
+
+repos:
+  - name: devtools-workspace
+    role: workspace
+    description: 親ワークスペース（このリポジトリ）。マニフェスト・一括操作・パイプライン例
+
+  - name: .github
+    role: org-standard
+    description: 組織既定ファイルと再利用ワークフロー（共通 CI / リリース）
+
+  - name: devtools-template
+    role: template
+    description: 新規ツールの雛形（Use this template で複製）
+
+  - name: devtools-common
+    role: library
+    python: true
+    description: 共有ライブラリ（CLI 規約・ログ・一時ファイル・HTTP・レポート）
+
+  - name: doc-to-markdown
+    role: tool
+    python: true
+    cli: doc2md
+    prompt: "08"
+    description: Office / PDF / draw.io を Markdown + 抽出図に変換（変換のみ）
+
+  - name: field-validation
+    role: tool
+    python: true
+    cli: fieldcheck
+    prompt: "09"
+    description: 表 / YAML / JSON の項目間整合性を宣言的ルールで検証（検証のみ）

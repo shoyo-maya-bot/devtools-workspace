@@ -1,0 +1,31 @@
+name: 不具合報告
+description: ツールの不具合を報告する（機密文書そのものは添付しない）
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: ツール名とバージョン
+      placeholder: doc-to-markdown 0.1.0（doc2md --version）
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: 実行したコマンド
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 起きたこと（エラーメッセージ・終了コード）
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期待した結果
+  - type: markdown
+    attributes:
+      value: 再現用ファイルは機密を含まない最小のサンプルにしてください。

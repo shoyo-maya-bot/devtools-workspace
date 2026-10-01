@@ -1,0 +1,25 @@
+{
+  // VS Code マルチルートワークスペース: 兄弟に並べた各リポジトリを 1 ウィンドウで開く
+  // （先に `python scripts/bootstrap.py clone --org <your-org>` で取得しておく）
+  "folders": [
+    { "name": "workspace", "path": "." },
+    { "name": ".github (org)", "path": "../.github" },
+    { "name": "devtools-template", "path": "../devtools-template" },
+    { "name": "devtools-common", "path": "../devtools-common" },
+    { "name": "doc-to-markdown", "path": "../doc-to-markdown" },
+    { "name": "field-validation", "path": "../field-validation" }
+  ],
+  "settings": {
+    "files.eol": "\n",
+    // setup が作る共有の仮想環境は 1 つ上の .venv（Python: Select Interpreter で選ぶと新しいターミナルで有効になる）
+    "python.terminal.activateEnvironment": true,
+    "chat.useAgentsMdFile": true,
+    "[python]": { "editor.defaultFormatter": "charliermarsh.ruff", "editor.formatOnSave": true },
+    "yaml.schemas": {
+      "../field-validation/rules.schema.json": ["**/rules*.yaml", "**/rules*.yml"]
+    }
+  },
+  "extensions": {
+    "recommendations": ["ms-python.python", "charliermarsh.ruff", "redhat.vscode-yaml", "EditorConfig.EditorConfig"]
+  }
+}
