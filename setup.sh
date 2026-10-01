@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
 # ワークスペースのセットアップ（macOS / Linux）: 全リポジトリの取得と一括インストール
-#   ./setup.sh --org my-org
+#   ./setup.sh               （組織名は repos.yaml の org。別の組織なら --org <組織名>）
 set -euo pipefail
 cd "$(dirname "$0")"
 ORG=""
 [ "${1:-}" = "--org" ] && ORG="${2:-}"
-[ -n "$ORG" ] || read -r -p "GitHub の組織名（例: my-org）: " ORG
 command -v git >/dev/null || { echo "Git をインストールしてください" >&2; exit 1; }
-python3 scripts/bootstrap.py clone --org "$ORG"
+python3 scripts/bootstrap.py clone ${ORG:+--org "$ORG"}
 python3 scripts/bootstrap.py install
 ../.venv/bin/doc2md --check-env
 echo

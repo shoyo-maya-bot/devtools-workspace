@@ -1,5 +1,0 @@
-# レビュー必須の担当を定義（<your-org>/<your-team> を実在のチームに置き換える）
-*                   @<your-org>/<your-team>
-/docs/prompts/      @<your-org>/<your-team>
-/kb.config.yaml     @<your-org>/<your-team>
-/.github/           @<your-org>/<your-team>

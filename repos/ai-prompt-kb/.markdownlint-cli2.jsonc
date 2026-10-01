@@ -1,4 +1,0 @@
-{
-  "globs": ["**/*.md"],
-  "ignores": ["node_modules/**", "site/**", "dist/**", ".venv/**", "docs/includes/**", "CHANGELOG.md"]
-}

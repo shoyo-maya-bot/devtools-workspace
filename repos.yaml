@@ -1,6 +1,6 @@
 # マルチレポのマニフェスト（ツール一覧の正の情報源）
 # 新しいツールを公開したら、ここに 1 件追加する（bootstrap・VS Code ワークスペース・README の一覧がこれを使う）
-org: <your-org>
+org: shoyo-maya-bot
 host: https://github.com
 
 repos:

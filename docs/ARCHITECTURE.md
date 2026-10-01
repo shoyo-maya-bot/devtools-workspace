@@ -44,7 +44,7 @@ flowchart TB
 | 共通化したいもの | 方法 |
 |---|---|
 | 処理（CLI 規約・レポート・ログ・一時ファイル・外部 API） | `devtools-common` をタグ付きで公開し、各ツールが依存として取り込む |
-| CI（lint / test / SAST / 依存脆弱性） | `.github` の再利用ワークフローを `uses: <your-org>/.github/...@v1` で呼ぶ |
+| CI（lint / test / SAST / 依存脆弱性） | `.github` の再利用ワークフローを `uses: shoyo-maya-bot/.github/...@v1` で呼ぶ |
 | lint / format 設定 | テンプレートの `pyproject.toml`（`[tool.ruff]`）から配布 |
 | PR・Issue テンプレート、CONTRIBUTING、SECURITY | `.github` リポの既定ファイル |
 | 依存の追随 | 各リポの Dependabot（pip・github-actions） |

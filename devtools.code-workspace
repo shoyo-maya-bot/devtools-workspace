@@ -1,6 +1,6 @@
 {
   // VS Code マルチルートワークスペース: 兄弟に並べた各リポジトリを 1 ウィンドウで開く
-  // （先に `python scripts/bootstrap.py clone --org <your-org>` で取得しておく）
+  // （先に `python scripts/bootstrap.py clone --org shoyo-maya-bot` で取得しておく）
   "folders": [
     { "name": "workspace", "path": "." },
     { "name": ".github (org)", "path": "../.github" },

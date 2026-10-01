@@ -1,7 +1,0 @@
-{
-  "name": "Python tool CI (org standard)",
-  "description": "組織共通の lint / test / SAST / 依存脆弱性チェックを呼び出す",
-  "iconName": "python",
-  "categories": ["Python"],
-  "filePatterns": ["pyproject.toml$"]
-}
