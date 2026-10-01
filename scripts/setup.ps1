@@ -1,6 +1,6 @@
 ﻿# ワークスペースのセットアップ（Windows）
 #   .\setup.cmd                 組織名を聞かれます
-#   .\scripts\setup.ps1 -Org my-org
+#   .\scripts\setup.ps1 -Org other-org   （省略時は repos.yaml の org）
 param([string]$Org = "")
 $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -13,8 +13,8 @@ foreach ($c in @("py", "python", "python3")) {
 if (-not $py) { Write-Host "Python 3.11 以上をインストールしてください: https://www.python.org/downloads/" -ForegroundColor Red; exit 1 }
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) { Write-Host "Git をインストールしてください: https://git-scm.com/" -ForegroundColor Red; exit 1 }
 
-if (-not $Org) { $Org = Read-Host "GitHub の組織名（例: my-org）" }
-& $py @pyArgs scripts\bootstrap.py clone --org $Org
+$cloneArgs = @("scripts\bootstrap.py", "clone"); if ($Org) { $cloneArgs += @("--org", $Org) }
+& $py @pyArgs @cloneArgs
 if ($LASTEXITCODE -ne 0) { exit 1 }
 & $py @pyArgs scripts\bootstrap.py install
 if ($LASTEXITCODE -ne 0) { exit 1 }

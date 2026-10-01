@@ -17,7 +17,7 @@ flowchart LR
 
    ```bash
    cd <親フォルダ>
-   git clone https://github.com/<your-org>/<tool-name>.git && cd <tool-name>
+   git clone https://github.com/shoyo-maya-bot/<tool-name>.git && cd <tool-name>
    python scripts/init_tool.py <tool-name> "<責務を 1 文で>"
    pip install -e ".[dev]" && pytest
    ```
