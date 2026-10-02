@@ -21,12 +21,15 @@ class ManifestTest(unittest.TestCase):
         self.assertEqual(top["host"], "https://github.com")
         for required in [
             "devtools-workspace",
-            ".github",
-            "devtools-template",
             "devtools-common",
+            "dev-environment",
+            "ai-coding",
+            "learning-materials",
         ]:
             self.assertIn(required, names)
         self.assertEqual(len(names), len(set(names)))
+        for retired in (".github", "devtools-template", "field-validation", "spec-trace", "ai-prompt-kb"):
+            self.assertNotIn(retired, names)  # 統合・廃止したリポジトリ
         tools = [r for r in repos if r.role == "tool"]
         self.assertTrue(tools)
         self.assertTrue(all(r.cli and r.python for r in tools))
@@ -78,6 +81,7 @@ class InstallPlanTest(unittest.TestCase):
             self.assertEqual(bootstrap.main(["list"]), 0)
             self.assertEqual(bootstrap.main(["--root", str(self.tmp), "install", "--dry-run"]), 0)
         self.assertIn("| doc-to-markdown | tool | `doc2md` |", out.getvalue())
+        self.assertIn("| office-review | tool | `harness` |", out.getvalue())
 
     def test_clone_requires_org(self):
         with self.assertRaises(SystemExit):

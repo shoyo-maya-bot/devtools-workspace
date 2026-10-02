@@ -19,7 +19,7 @@ argument-hint: チェックしたいファイルのパス
    （複数あって判断できなければ利用者に聞く）
 3. **ルール**:
    - ルールファイルがある → そのまま使う
-   - 文章のルールだけ → field-validation の `/fieldcheck-write-rules` と同じ手順で `rules.yaml` を作り、
+   - 文章のルールだけ → `fieldcheck list-rules` と `fieldcheck schema`（office-review）を見て `rules.yaml` を作り、
      `fieldcheck check-rules rules.yaml` が通るまで直す（作ったルールは利用者に見せる）
    - どちらも無い → 列名と値を見て、ありそうなルール案を 3〜5 個提案し、使うものを利用者に選んでもらう
 4. **検証**: `fieldcheck validate "out/<名前>.md" --table "<見出し名>" -r rules.yaml -f json`
