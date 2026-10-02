@@ -48,7 +48,6 @@ class Repo:
     description: str = ""
     python: bool = False
     cli: str = ""
-    prompt: str = ""
 
 
 def _scalar(v: str) -> str | bool:
@@ -165,10 +164,10 @@ def cmd_install(root: Path, repos: list[Repo], venv_dir: Path | None, dry_run: b
 
 
 def cmd_list(repos: list[Repo]) -> int:
-    print("| リポジトリ | 役割 | CLI | 元プロンプト | 説明 |")
-    print("|---|---|---|---|---|")
+    print("| リポジトリ | 役割 | CLI | 説明 |")
+    print("|---|---|---|---|")
     for r in repos:
-        print(f"| {r.name} | {r.role} | {f'`{r.cli}`' if r.cli else ''} | {r.prompt} | {r.description} |")
+        print(f"| {r.name} | {r.role} | {f'`{r.cli}`' if r.cli else ''} | {r.description} |")
     return 0
 
 

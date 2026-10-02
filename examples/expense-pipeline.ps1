@@ -1,4 +1,4 @@
-﻿# 08 → 09 パイプライン例（Windows PowerShell。UTF-8 BOM 付きで保存）
+﻿# doc2md → fieldcheck パイプライン例（Windows PowerShell。UTF-8 BOM 付きで保存）
 #   .\examples\expense-pipeline.ps1 [-InputFile 入力.xlsx] [-Rules ルール.yaml] [-Table 申請一覧]
 param(
     [string]$InputFile = "",
@@ -10,7 +10,7 @@ $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 if (-not $InputFile) { $InputFile = Join-Path $Root "doc-to-markdown\samples\expense-list.xlsx" }
-if (-not $Rules) { $Rules = Join-Path $Root "field-validation\samples\rules.yaml" }
+if (-not $Rules) { $Rules = Join-Path $Root "office-review\fieldcheck\samples\rules.yaml" }
 $Stem = [System.IO.Path]::GetFileNameWithoutExtension($InputFile)
 
 Write-Host "== 1/2 doc2md: $InputFile"
