@@ -12,6 +12,7 @@
 |---|---|---|---|
 | [doc-to-markdown](https://github.com/shoyo-maya-bot/doc-to-markdown) | ツール | `doc2md` | Office / PDF / draw.io を Markdown + 抽出図に変換（変換のみ）。変換ロスを検知 |
 | [field-validation](https://github.com/shoyo-maya-bot/field-validation) | ツール | `fieldcheck` | 表 / YAML / JSON の項目間整合性を YAML の宣言的ルールで検証（検証のみ） |
+| [spec-trace](https://github.com/shoyo-maya-bot/spec-trace) | ツール | `spec-trace` | 要件と実装・テストの対応表を検証し、裏付けのない「実装済み」「テスト済み」と設計書のドリフトを検出 |
 | [devtools-common](https://github.com/shoyo-maya-bot/devtools-common) | 共有ライブラリ | – | CLI 規約（終了コード・出力形式）・ログ・一時ファイル・HTTP（レート制限/リトライ）・レポート |
 | [devtools-template](https://github.com/shoyo-maya-bot/devtools-template) | テンプレート | – | 新規ツールの雛形（Use this template → `init_tool.py`） |
 | [.github](https://github.com/shoyo-maya-bot/.github) | 組織標準（任意） | – | PR・Issue テンプレート、CONTRIBUTING |
@@ -34,6 +35,8 @@ MCP などの追加設定は不要です。**必要なツールのリポジト�
 | `/doc2md-investigate-loss` | doc-to-markdown | 変換で欠けた内容の原因を調べる |
 | `/fieldcheck-write-rules` | field-validation | 文章の業務ルールから検証ルール（YAML）を作って試す |
 | `/fieldcheck-run` | field-validation | 検証して「どの行の何をどう直すか」を報告 |
+| `/spec-trace-write` | spec-trace | 設計書から要件を抜き出し、対応表（トレーサビリティ定義）を作る |
+| `/spec-trace-check` | spec-trace | 対応表を検査して、足りない実装・テストと直し方を報告 |
 | `/check-excel` | devtools-workspace | Excel を変換 → 表を選ぶ → ルールでチェック → 報告（上の 2 つを通しで） |
 | `/implement-tool` | devtools-template | 新しいツールを設計 → 実装 → テスト |
 

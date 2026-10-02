@@ -6,11 +6,11 @@ host: https://github.com
 repos:
   - name: devtools-workspace
     role: workspace
-    description: 親ワークスペース（このリポジトリ）。マニフェスト・一括操作・パイプライン例
+    description: 親ワークスペース（このリポジトリ）。マニフェスト・一括操作・パイプライン例・共通 CI
 
   - name: .github
     role: org-standard
-    description: 組織既定ファイルと再利用ワークフロー（共通 CI / リリース）
+    description: 組織既定ファイル（PR・Issue テンプレート、CONTRIBUTING。任意）
 
   - name: devtools-template
     role: template
@@ -34,3 +34,10 @@ repos:
     cli: fieldcheck
     prompt: "09"
     description: 表 / YAML / JSON の項目間整合性を宣言的ルールで検証（検証のみ）
+
+  - name: spec-trace
+    role: tool
+    python: true
+    cli: spec-trace
+    prompt: "10"
+    description: 要件と実装・テストの対応表を検証し、裏付けのない「実装済み」「テスト済み」と設計書のドリフトを検出
