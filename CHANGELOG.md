@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### Added
+
+- spec-trace を一覧（repos.yaml・README・VS Code ワークスペース）に追加
+- Copilot への指示に AI エージェントの約束
+
 ## [0.2.0] - 2026-09-30
 
 ### Added

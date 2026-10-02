@@ -7,7 +7,8 @@
     { "name": "devtools-template", "path": "../devtools-template" },
     { "name": "devtools-common", "path": "../devtools-common" },
     { "name": "doc-to-markdown", "path": "../doc-to-markdown" },
-    { "name": "field-validation", "path": "../field-validation" }
+    { "name": "field-validation", "path": "../field-validation" },
+    { "name": "spec-trace", "path": "../spec-trace" }
   ],
   "settings": {
     "files.eol": "\n",
