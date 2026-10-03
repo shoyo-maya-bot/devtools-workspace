@@ -41,13 +41,14 @@ flowchart TB
 | 種類 | リポジトリ | 変更の頻度 | 版の固定方法 |
 |---|---|---|---|
 | 土台 | `devtools-common` | 中 | 各ツールがコミット SHA で固定して依存 |
+| 土台 | `.github` | 低 | アカウント共通の既定ファイル（PR・Issue テンプレートなど。今は空でもよい） |
 | 土台 | `devtools-workspace` | 中 | マニフェスト（`repos.yaml`）・bootstrap・VS Code ワークスペース・パイプライン例・再利用ワークフロー |
 | 開発の基盤 | `dev-environment` / `ai-coding` / `learning-materials` | 中 | main（実案件では会社の GitHub に複製して合わせる） |
 | ツール | doc-to-markdown ほか 6 個 | 高 | 利用者は clone（main）または `pipx install …@<SHA>` |
 | そのほか | slack-agenda-bot / slide-tool | 中 | main |
 
 統合・廃止したリポジトリ: field-validation（office-review に同梱）、spec-trace（ai-coding の `tools/spec-trace` に同梱）、
-devtools-template（[NEW_TOOL.md](NEW_TOOL.md) の手順に置き換え）、`.github`（各リポに必要なファイルを置く）、ai-prompt-kb（プロンプトは各リポの実物に）。
+devtools-template（[NEW_TOOL.md](NEW_TOOL.md) の手順に置き換え）、ai-prompt-kb（プロンプトは各リポの実物に）。
 
 ## 共通化のやり方（フォルダ共有はしない）
 

@@ -22,6 +22,7 @@
 | 教材 | [learning-materials](https://github.com/shoyo-maya-bot/learning-materials) | – | 環境構築・基礎・実ソース読解（演習と解答）・API・非同期・設計品質の全 52 章 |
 | 土台 | [devtools-common](https://github.com/shoyo-maya-bot/devtools-common) | – | 共有ライブラリ（CLI の終了コード・レポート形式・ログ・一時ファイル・HTTP） |
 | 土台 | devtools-workspace（このリポ） | – | マニフェスト・一括操作・パイプライン例・共通 CI |
+| 土台 | [.github](https://github.com/shoyo-maya-bot/.github) | – | アカウント共通の既定ファイル（PR・Issue テンプレートなど。今後のために残している） |
 
 一覧の正は [repos.yaml](repos.yaml) です（`python scripts/bootstrap.py list` で表を出力）。
 
@@ -102,7 +103,7 @@ code devtools.code-workspace                         # VS Code で全リポを 1
 
 別の組織に移すときは、各リポジトリの `shoyo-maya-bot` を置き換えてください（`pyproject.toml`、`ci.yml`、README、`repos.yaml`、`mkdocs.yml`）。
 
-- [x] リポジトリを作成して push（13 個）
+- [x] リポジトリを作成して push（13 個 + .github）
 - [x] 各ツールは `devtools-common` をコミット SHA で固定して依存（タグ不要）
 - [ ] learning-materials: Settings → Pages → Source を **GitHub Actions** にする（教材サイトの公開）
 - [ ] 各リポの `main` にブランチ保護（CI 必須・レビュー必須）

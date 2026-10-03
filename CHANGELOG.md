@@ -7,7 +7,7 @@
 
 - リポジトリを用途別の 13 個に作り直した（repos.yaml）: dev-environment、ai-coding、office-review、design-diff、quality-analytics、
   office-replace、backlog-report、slack-agenda-bot、slide-tool、learning-materials を追加
-- field-validation は office-review に、spec-trace は ai-coding に同梱。devtools-template・.github・ai-prompt-kb は廃止
+- field-validation は office-review に、spec-trace は ai-coding に同梱。devtools-template・ai-prompt-kb は廃止（.github は今後のために残す）
 - README・AGENTS.md・ARCHITECTURE・NEW_TOOL・VS Code ワークスペース・パイプライン例を新しい構成に合わせた
 ## [Unreleased]
 
