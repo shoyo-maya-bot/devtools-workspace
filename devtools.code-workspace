@@ -3,6 +3,7 @@
   // （先に `python scripts/bootstrap.py clone --org shoyo-maya-bot` で取得しておく）
   "folders": [
     { "name": "workspace", "path": "." },
+    { "name": ".github", "path": "../.github" },
     { "name": "devtools-common", "path": "../devtools-common" },
     { "name": "dev-environment", "path": "../dev-environment" },
     { "name": "ai-coding", "path": "../ai-coding" },

@@ -28,7 +28,7 @@ class ManifestTest(unittest.TestCase):
         ]:
             self.assertIn(required, names)
         self.assertEqual(len(names), len(set(names)))
-        for retired in (".github", "devtools-template", "field-validation", "spec-trace", "ai-prompt-kb"):
+        for retired in ("devtools-template", "field-validation", "spec-trace", "ai-prompt-kb"):
             self.assertNotIn(retired, names)  # 統合・廃止したリポジトリ
         tools = [r for r in repos if r.role == "tool"]
         self.assertTrue(tools)

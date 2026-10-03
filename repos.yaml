@@ -11,6 +11,10 @@ repos:
     role: workspace
     description: 親ワークスペース（このリポジトリ）。マニフェスト・一括操作・パイプライン例・共通 CI
 
+  - name: .github
+    role: org-standard
+    description: アカウント共通の既定ファイル（PR・Issue テンプレート、CONTRIBUTING など。今後使うときのために残す）
+
   - name: devtools-common
     role: library
     python: true
