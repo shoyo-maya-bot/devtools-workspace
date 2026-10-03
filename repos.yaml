@@ -76,3 +76,7 @@ repos:
   - name: learning-materials
     role: docs
     description: 開発者向け教材（環境構築・基礎・実ソース読解・API・非同期・設計品質）。GitHub Pages で公開
+
+  - name: agent-lab
+    role: lab
+    description: AI エージェントの実験（MCP・自律度・マルチモデルの相互レビュー）。設計の段階

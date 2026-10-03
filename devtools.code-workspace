@@ -15,7 +15,8 @@
     { "name": "backlog-report", "path": "../backlog-report" },
     { "name": "slack-agenda-bot", "path": "../slack-agenda-bot" },
     { "name": "slide-tool", "path": "../slide-tool" },
-    { "name": "learning-materials", "path": "../learning-materials" }
+    { "name": "learning-materials", "path": "../learning-materials" },
+    { "name": "agent-lab", "path": "../agent-lab" }
   ],
   "settings": {
     "files.eol": "\n",
