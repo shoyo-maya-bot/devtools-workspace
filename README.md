@@ -107,6 +107,6 @@ code devtools.code-workspace                         # VS Code で全リポを 1
 - [x] 各ツールは `devtools-common` をコミット SHA で固定して依存（タグ不要）
 - [ ] learning-materials: Settings → Pages → Source を **GitHub Actions** にする（教材サイトの公開）
 - [ ] 各リポの `main` にブランチ保護（CI 必須・レビュー必須）
-- [ ] 各リポの LICENSE を決めて反映
+- [x] LICENSE: 全リポ MIT（著作権表示はアカウント名）
 - [ ] 社内の AI 利用規程・Copilot の契約で、業務文書を扱ってよい範囲を確認（[docs/AI_USAGE.md](docs/AI_USAGE.md)）
 - [ ] LLM API・Backlog・Slack・AWS を使う場合は、それぞれの利用ルールと費用の承認を確認
