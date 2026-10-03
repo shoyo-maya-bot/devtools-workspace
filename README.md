@@ -20,6 +20,7 @@
 | 会議のアジェンダ | [slack-agenda-bot](https://github.com/shoyo-maya-bot/slack-agenda-bot) | – | `/agenda` で議題を集め、Canvas にまとめる Slack ボット |
 | スライド | [slide-tool](https://github.com/shoyo-maya-bot/slide-tool) | `npm run` | Marp + Tailwind のテーマ・レイアウト 20 種・はみ出しチェック・PDF / PPTX |
 | 教材 | [learning-materials](https://github.com/shoyo-maya-bot/learning-materials) | – | 環境構築・基礎・実ソース読解（演習と解答）・API・非同期・設計品質の全 52 章 |
+| 実験 | [agent-lab](https://github.com/shoyo-maya-bot/agent-lab) | – | AI エージェントに任せられる範囲の実験（MCP・自律度・マルチモデルの相互レビュー）。設計の段階 |
 | 土台 | [devtools-common](https://github.com/shoyo-maya-bot/devtools-common) | – | 共有ライブラリ（CLI の終了コード・レポート形式・ログ・一時ファイル・HTTP） |
 | 土台 | devtools-workspace（このリポ） | – | マニフェスト・一括操作・パイプライン例・共通 CI |
 | 土台 | [.github](https://github.com/shoyo-maya-bot/.github) | – | アカウント共通の既定ファイル（PR・Issue テンプレートなど。今後のために残している） |
