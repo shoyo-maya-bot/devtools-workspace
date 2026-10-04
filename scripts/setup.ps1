@@ -1,6 +1,6 @@
 ﻿# ワークスペースのセットアップ（Windows）
-#   .\setup.cmd                 組織名を聞かれます
-#   .\scripts\setup.ps1 -Org other-org   （省略時は repos.yaml の org）
+#   .\setup.cmd                          repos.yaml の org（shoyo-maya-bot）から全リポジトリを取得
+#   .\scripts\setup.ps1 -Org other-org   別の組織から取得するとき
 param([string]$Org = "")
 $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8

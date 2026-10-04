@@ -43,6 +43,9 @@
 MCP などの追加設定は不要です。**使うリポジトリを 1 つ clone するだけ** で使えます。
 
 0. まだツールが入っていなければ、Windows では `install-prereqs.cmd` をダブルクリック（Git・Python 3.12・Corretto 17・Node.js・VS Code・Rancher Desktop を winget で入れる。入っているものは飛ばす）
+   - `install-prereqs.cmd -Check` で入っているかだけを調べられる（Java は 17 以上か、WSL2 は実際に動くかまで見る）
+   - 別の版の Java（8 など）が入っていても消さずに 17 を追加する。WSL2 を有効にしたときは再起動が要る
+   - Rancher Desktop 1.23.1 / 1.24.0 の不具合（docker が `timed out dialing Hyper-V socket` になる）の回避策も置く（[rancher-desktop#10780](https://github.com/rancher-sandbox/rancher-desktop/issues/10780)）
 1. 使いたいリポジトリを clone する（Python のツールは `devtools-common` も同じフォルダに clone しておくと、GitHub の認証なしでセットアップできます）
 2. **Windows**: `setup.cmd` をダブルクリック ／ **macOS・Linux**: `./setup.sh`
 3. VS Code でそのフォルダを開き、Copilot Chat で `/` と入力 → プロンプトを選ぶ
