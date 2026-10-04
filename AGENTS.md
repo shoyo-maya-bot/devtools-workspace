@@ -23,6 +23,9 @@ Python の CLI はすべて次が共通です。
 | 設計書から実装・テストを進めたい | ai-coding の `/ai-plan` から。ゲートは `scripts/verify-gates.sh` |
 | 要件と実装・テストの対応を確かめたい | `spec-trace check traceability/ --require proven`（ai-coding の tools/spec-trace） |
 
+実務での流れ（いつ使うか・人が確かめるところ・警告や終了コードを見たときにどうするか）は、各リポジトリの `WORKFLOW.md` にあります
+（[ai-coding](https://github.com/shoyo-maya-bot/ai-coding/blob/main/WORKFLOW.md)・[doc-to-markdown](https://github.com/shoyo-maya-bot/doc-to-markdown/blob/main/WORKFLOW.md)。ほかは順次）。
+
 ## 注意
 
 - 1 ツール = 1 責務。既存ツールで足りることを新しいスクリプトにしない。
