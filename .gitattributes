@@ -10,3 +10,4 @@
 *.drawio text eol=lf
 *.cmd text eol=crlf working-tree-encoding=cp932
 *.bat text eol=crlf
+*.cmd text eol=crlf
