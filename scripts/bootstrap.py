@@ -104,11 +104,19 @@ def cmd_clone(root: Path, top: dict[str, str], repos: list[Repo], org: str | Non
 
 
 def cmd_pull(root: Path, repos: list[Repo]) -> int:
+    """取得済みのリポジトリを fast-forward で最新にする。手元に変更があるなどで進められないものは知らせて飛ばす."""
+    failed = 0
     for r in repos:
         d = root / r.name
-        if (d / ".git").exists():
-            print(f"pull   {r.name}: {git(['pull', '--ff-only'], cwd=d, check=False) or 'ok'}")
-    return 0
+        if not (d / ".git").exists():
+            continue
+        p = subprocess.run(["git", "pull", "--ff-only"], cwd=d, capture_output=True, text=True, check=False)
+        if p.returncode == 0:
+            print(f"pull   {r.name}: {p.stdout.strip().splitlines()[-1] if p.stdout.strip() else 'ok'}")
+        else:
+            failed += 1
+            print(f"pull   {r.name}: 最新にできませんでした（手元の変更を確かめてください）: {p.stderr.strip()}")
+    return 1 if failed else 0
 
 
 def cmd_status(root: Path, repos: list[Repo]) -> int:

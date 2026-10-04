@@ -7,6 +7,7 @@ ORG=""
 [ "${1:-}" = "--org" ] && ORG="${2:-}"
 command -v git >/dev/null || { echo "Git をインストールしてください" >&2; exit 1; }
 python3 scripts/bootstrap.py clone ${ORG:+--org "$ORG"}
+python3 scripts/bootstrap.py pull || echo "最新にできなかったリポジトリがあります（上の表示を確かめてください）。セットアップは続けます。" >&2
 python3 scripts/bootstrap.py install
 ../.venv/bin/doc2md --check-env
 echo

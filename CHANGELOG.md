@@ -11,6 +11,8 @@
 - install-prereqs: Rancher Desktop 1.23.1 / 1.24.0 の docker が止まる不具合の回避策（provisioning スクリプト）を置く
 - install-prereqs: VS Code の拡張機能が入らなかったときに `[追加]` と出さず `[失敗]` と出す。失敗があれば終了コード 1
 - setup.ps1: 冒頭のコメントを実際の動き（repos.yaml の org を使う）に合わせた
+- setup: 取得済みのリポジトリを飛ばすだけだったのを、`bootstrap.py pull` で最新にするようにした（setup.cmd の再実行で更新できる）
+- bootstrap.py pull: 進められなかったリポジトリを知らせ、終了コード 1 を返す（これまでは失敗を表示しなかった）
 
 ## 2026-10-03 再構成
 

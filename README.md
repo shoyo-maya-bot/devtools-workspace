@@ -77,7 +77,8 @@ setup.cmd                     # Windows
 ./setup.sh                    # macOS / Linux
 ```
 
-全リポジトリを兄弟フォルダに clone し、Python のツールを共有の仮想環境（1 つ上の `.venv`）にまとめて入れます。
+全リポジトリを兄弟フォルダに clone し（取得済みのものは `git pull --ff-only` で最新にする）、Python のツールを共有の仮想環境（1 つ上の `.venv`）にまとめて入れます。
+最新にしたいときも、もう一度 `setup.cmd` を実行すれば足ります。
 VS Code で `devtools.code-workspace` を開くと全リポジトリを 1 画面で扱えます。
 
 ### パイプライン例（doc2md → fieldcheck）

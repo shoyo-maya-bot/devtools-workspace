@@ -90,3 +90,38 @@ class InstallPlanTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PullTest(unittest.TestCase):
+    """setup が取得済みのリポジトリを最新にする（bootstrap.py pull）."""
+
+    def _git(self, *args, cwd):
+        import subprocess
+
+        subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True)
+
+    def test_pull_updates_and_reports_blocked(self):
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        ident = ["-c", "user.name=t", "-c", "user.email=t@example.com"]
+        for name in ("a", "b"):
+            src = tmp / "src" / name
+            src.mkdir(parents=True)
+            self._git("init", "-q", "-b", "main", cwd=src)
+            (src / "f.txt").write_text("1\n", encoding="utf-8")
+            self._git("add", ".", cwd=src)
+            self._git(*ident, "commit", "-q", "-m", "1", cwd=src)
+            self._git("clone", "-q", str(src), str(tmp / "ws" / name), cwd=tmp)
+            (src / "f.txt").write_text("2\n", encoding="utf-8")
+            self._git(*ident, "commit", "-q", "-am", "2", cwd=src)
+        (tmp / "ws" / "b" / "f.txt").write_text("local\n", encoding="utf-8")  # b は手元で変更 → 進められない
+
+        repos = [bootstrap.Repo(name="a"), bootstrap.Repo(name="b"), bootstrap.Repo(name="missing")]
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = bootstrap.cmd_pull(tmp / "ws", repos)
+        self.assertEqual(code, 1)
+        self.assertEqual((tmp / "ws" / "a" / "f.txt").read_text(encoding="utf-8"), "2\n")
+        self.assertEqual((tmp / "ws" / "b" / "f.txt").read_text(encoding="utf-8"), "local\n")
+        self.assertIn("pull   b: 最新にできませんでした", out.getvalue())
+        self.assertNotIn("missing", out.getvalue())
