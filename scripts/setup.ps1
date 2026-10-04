@@ -1,5 +1,5 @@
 ﻿# ワークスペースのセットアップ（Windows）
-#   .\setup.cmd                          repos.yaml の org（shoyo-maya-bot）から全リポジトリを取得
+#   .\setup.cmd                          repos.yaml の org（shoyo-maya-bot）から全リポジトリを取得（取得済みのものは最新にする）
 #   .\scripts\setup.ps1 -Org other-org   別の組織から取得するとき
 param([string]$Org = "")
 $ErrorActionPreference = "Stop"
@@ -16,6 +16,9 @@ if (-not (Get-Command git -ErrorAction SilentlyContinue)) { Write-Host "Git を�
 $cloneArgs = @("scripts\bootstrap.py", "clone"); if ($Org) { $cloneArgs += @("--org", $Org) }
 & $py @pyArgs @cloneArgs
 if ($LASTEXITCODE -ne 0) { exit 1 }
+# 取得済みのリポジトリは最新にする（手元に変更があって進められないものは知らせて先へ進む）
+& $py @pyArgs scripts\bootstrap.py pull
+if ($LASTEXITCODE -ne 0) { Write-Host "最新にできなかったリポジトリがあります（上の表示を確かめてください）。セットアップは続けます。" -ForegroundColor Yellow }
 & $py @pyArgs scripts\bootstrap.py install
 if ($LASTEXITCODE -ne 0) { exit 1 }
 & ..\.venv\Scripts\doc2md.exe --check-env
