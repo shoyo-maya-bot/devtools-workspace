@@ -42,6 +42,7 @@
 
 MCP などの追加設定は不要です。**使うリポジトリを 1 つ clone するだけ** で使えます。
 
+0. まだツールが入っていなければ、Windows では `install-prereqs.cmd` をダブルクリック（Git・Python 3.12・Corretto 17・Node.js・VS Code・Rancher Desktop を winget で入れる。入っているものは飛ばす）
 1. 使いたいリポジトリを clone する（Python のツールは `devtools-common` も同じフォルダに clone しておくと、GitHub の認証なしでセットアップできます）
 2. **Windows**: `setup.cmd` をダブルクリック ／ **macOS・Linux**: `./setup.sh`
 3. VS Code でそのフォルダを開き、Copilot Chat で `/` と入力 → プロンプトを選ぶ
