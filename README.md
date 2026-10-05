@@ -135,6 +135,8 @@ code devtools.code-workspace                         # VS Code で全リポを 1
 
 `setup.cmd`・`install-prereqs.cmd` は、環境変数 `CI`（GitHub Actions では自動で入る）か `DEVTOOLS_NO_PAUSE` があれば最後の `pause` をせず、PowerShell の終了コードをそのまま返します。ダブルクリックしたときの動きは変わりません。
 CI で使う Actions はコミット SHA で固定しています（横にバージョンをコメントで書いています）。
+checkout は `persist-credentials: false` にして、認証情報をランナーに残しません。どちらも単体テストで確かめています。
+`setup.cmd` は 3.11 以上の Python を探して使います。日本語の出力で止まらないよう、Python の入出力を UTF-8 にしています。
 
 確かめていないこと: winget で実際にインストールすること（ランナーにはすでに入っているものが多く、Rancher Desktop・WSL2 は再起動や仮想化が要るため）、日本語版 Windows（cp932）の画面での表示、全リポジトリの取得。
 

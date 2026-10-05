@@ -14,6 +14,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.12"
@@ -34,6 +36,8 @@ jobs:
         shell: pwsh
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.12"
@@ -76,6 +80,9 @@ jobs:
         run: call setup.cmd -Only devtools-common,doc-to-markdown
 
       - name: Smoke test the installed tools
+        # ランナーの既定の文字コード（cp1252）では日本語のヘルプを書けないため UTF-8 にする（日本語の Windows は cp932 で表示できる）
+        env:
+          PYTHONUTF8: "1"
         run: |
           $venv = Join-Path (Split-Path $PWD -Parent) ".venv\Scripts"
           & "$venv\doc2md.exe" --help; if ($LASTEXITCODE) { exit 1 }

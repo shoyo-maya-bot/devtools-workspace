@@ -68,5 +68,24 @@ class NonInteractiveTest(unittest.TestCase):
         self.assertIn('if ($DryRun) { Write-Host ("[dry-run] winget "', text)
 
 
+class WorkflowHardeningTest(unittest.TestCase):
+    """Actions はコミット SHA で固定し、checkout は認証情報を残さない."""
+
+    def test_actions_are_pinned_to_sha(self):
+        for f in tracked(".github/workflows/*.yml"):
+            for m in re.finditer(r"(?m)^\s*-?\s*uses:\s*(\S+)(.*)$", f.read_text(encoding="utf-8")):
+                ref, rest = m.group(1), m.group(2)
+                if ref.startswith("./") or ref.startswith("shoyo-maya-bot/"):
+                    continue
+                self.assertRegex(ref, r"@[0-9a-f]{40}$", f"{f.name}: {ref}")
+                self.assertRegex(rest, r"#\s*v\d", f"{f.name}: {ref} に版のコメントがありません")
+
+    def test_checkout_does_not_persist_credentials(self):
+        for f in tracked(".github/workflows/*.yml"):
+            text = f.read_text(encoding="utf-8")
+            n = len(re.findall(r"uses:\s*actions/checkout@", text))
+            self.assertEqual(n, len(re.findall(r"persist-credentials:\s*false", text)), f.name)
+
+
 if __name__ == "__main__":
     unittest.main()
