@@ -1,0 +1,48 @@
+name: pages
+
+# devtools 武具屋（armory/）を GitHub Pages に出す。
+# リポジトリの Settings → Pages の Source は「GitHub Actions」にしておく。
+on:
+  push:
+    branches: [main]
+    paths:
+      - "armory/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: assemble site
+        run: |
+          mkdir -p _site
+          cp -r armory _site/armory
+          # トップに来た人は武具屋へ
+          printf '%s\n' '<!doctype html><meta charset="utf-8"><title>devtools</title>' \
+            '<meta http-equiv="refresh" content="0; url=armory/">' \
+            '<a href="armory/">devtools 武具屋へ</a>' > _site/index.html
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

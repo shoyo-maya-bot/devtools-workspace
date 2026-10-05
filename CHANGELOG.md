@@ -27,6 +27,7 @@
 - spec-trace を一覧（repos.yaml・README・VS Code ワークスペース）に追加
 - Copilot への指示に AI エージェントの約束
 - devtools 武具屋（armory/index.html）: リポジトリを装備に見立てて選び、clone / pull するマクロを作るページ。各道具の使い方（装備スキル）つき。repos.yaml とのずれはテストで検知
+- GitHub Pages に武具屋を出すワークフロー（.github/workflows/pages.yml）。サイトのトップは armory/ へ転送
 
 ## [0.2.0] - 2026-09-30
 
