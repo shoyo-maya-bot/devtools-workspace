@@ -81,6 +81,18 @@ setup.cmd                     # Windows
 最新にしたいときも、もう一度 `setup.cmd` を実行すれば足ります。
 VS Code で `devtools.code-workspace` を開くと全リポジトリを 1 画面で扱えます。
 
+### 選んで取ってくる（devtools 武具屋）
+
+[armory/index.html](armory/index.html) は、リポジトリを RPG の装備に見立てて選ぶページです（ブラウザで開くだけ。GitHub Pages を有効にすれば `https://shoyo-maya-bot.github.io/devtools-workspace/armory/` でも開けます）。
+
+- 道具を「そうびする」と、選んだリポジトリだけを clone（取得済みなら `git pull --ff-only`）する **詠唱マクロ** が PowerShell 版と bash 版でできる
+- 各道具の **装備スキル** に、その README の使い方をコマンド付きでまとめている
+- マクロはコピーして貼りつけるか、`equip-macro.ps1` / `equip-macro.sh` として保存して実行する
+  （PowerShell の実行ポリシーで止まるときは `powershell -ExecutionPolicy Bypass -File .\equip-macro.ps1`）
+
+保存先は既定で `~/devtools`。`setup` や `bootstrap.py` と同じく兄弟フォルダに並べる前提です。
+リポジトリを増やしたら、repos.yaml と一緒に `armory/index.html` の `ITEMS` にも 1 件足してください（ずれると CI のテストが落ちます）。
+
 ### パイプライン例（doc2md → fieldcheck）
 
 ```bash
@@ -107,7 +119,7 @@ code devtools.code-workspace                         # VS Code で全リポを 1
 
 ## 初期設定チェックリスト（組織に導入するとき）
 
-別の組織に移すときは、各リポジトリの `shoyo-maya-bot` を置き換えてください（`pyproject.toml`、`ci.yml`、README、`repos.yaml`、`mkdocs.yml`）。
+別の組織に移すときは、各リポジトリの `shoyo-maya-bot` を置き換えてください（`pyproject.toml`、`ci.yml`、README、`repos.yaml`、`mkdocs.yml`、`armory/index.html` の `ORG`）。
 
 - [x] リポジトリを作成して push（13 個 + .github）
 - [x] 各ツールは `devtools-common` をコミット SHA で固定して依存（タグ不要）
