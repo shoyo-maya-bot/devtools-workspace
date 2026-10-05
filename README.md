@@ -3,6 +3,8 @@
 開発の現場で使う **AI 活用ツール・開発環境・ガイドライン・教材** の親ワークスペースです。
 各リポジトリは用途ごとに独立していて（マルチレポ）、このリポジトリはその一覧（マニフェスト）・一括操作・ツール間の連携例をまとめます。
 
+**[▶ devtools 武具屋を開く](https://shoyo-maya-bot.github.io/devtools-workspace/armory/)** ── 使いたいリポジトリを選ぶと、まとめて clone / pull するマクロと各ツールの使い方が出ます（[使いかた](#選んで取ってくるdevtools-武具屋)）
+
 > 固有の社名・システム名を含まない汎用版です。実案件では会社の GitHub に複製し、設定（設計書の様式・観点・置換表など）を合わせて使います。
 
 ## リポジトリ一覧
@@ -83,7 +85,7 @@ VS Code で `devtools.code-workspace` を開くと全リポジトリを 1 画面
 
 ### 選んで取ってくる（devtools 武具屋）
 
-[armory/index.html](armory/index.html) は、リポジトリを RPG の装備に見立てて選ぶページです（ブラウザで開くだけ。`https://shoyo-maya-bot.github.io/devtools-workspace/armory/` でも公開しています。main の `armory/` が変わると `.github/workflows/pages.yml` がデプロイするので、Settings → Pages の Source は「GitHub Actions」にしておく）。
+**[devtools 武具屋](https://shoyo-maya-bot.github.io/devtools-workspace/armory/)** は、リポジトリを RPG の装備に見立てて選ぶページです（ソースは [armory/index.html](armory/index.html)。ダウンロードしてブラウザで開いても動きます。main の `armory/` が変わると `.github/workflows/pages.yml` がデプロイするので、Settings → Pages の Source は「GitHub Actions」にしておく）。
 
 - 道具を「そうびする」と、選んだリポジトリだけを clone（取得済みなら `git pull --ff-only`）する **詠唱マクロ** が PowerShell 版と bash 版でできる
 - 各道具の **装備スキル** に、その README の使い方をコマンド付きでまとめている
