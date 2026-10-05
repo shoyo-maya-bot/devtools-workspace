@@ -193,7 +193,15 @@ def cmd_list(repos: list[Repo]) -> int:
     return 0
 
 
+def _safe_stdio() -> None:
+    """出力先の文字コード（CI の cp1252 など）で日本語を書けなくても止まらないようにする."""
+    for s in (sys.stdout, sys.stderr):
+        if hasattr(s, "reconfigure"):
+            s.reconfigure(errors="backslashreplace")
+
+
 def main(argv: list[str] | None = None) -> int:
+    _safe_stdio()
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument(
         "--root",

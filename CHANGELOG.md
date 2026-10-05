@@ -10,6 +10,9 @@
 - install-prereqs: `-DryRun`（何を入れるかを表示するだけ）を追加
 - setup / bootstrap.py: `-Only`（`--only`）で一部のリポジトリだけ扱えるようにした。doc-to-markdown を取得していないときは `doc2md --check-env` を飛ばす
 - ワークフローの Actions をコミット SHA で固定し、ジョブに timeout-minutes を付けた
+- checkout に `persist-credentials: false` を付けた。SHA 固定と合わせて単体テストで確かめる
+- setup.ps1: py ランチャーなどが 3.11 未満を選んだときは次の候補を試す。Python の入出力を UTF-8 にする
+- bootstrap.py: 出力先の文字コードで日本語を書けなくても止まらないようにした（CI の Windows ランナーは cp1252）
 
 ## 2026-10-04 Windows 11 の実機で環境構築を通しで試した結果の修正
 

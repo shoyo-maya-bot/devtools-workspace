@@ -7,11 +7,19 @@ $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 Set-Location (Split-Path $PSScriptRoot -Parent)
 
+# 日本語の表示が化けたり、出力先の文字コードで書けずに止まったりしないよう、Python の入出力を UTF-8 にする
+$env:PYTHONUTF8 = "1"
+
+# 3.11 以上の Python を探す（py ランチャーが古い版を選ぶこともあるので、版を確かめてから使う）
 $py = $null; $pyArgs = @()
 foreach ($c in @("py", "python", "python3")) {
-    if (Get-Command $c -ErrorAction SilentlyContinue) { $py = $c; if ($c -eq "py") { $pyArgs = @("-3") }; break }
+    if (-not (Get-Command $c -ErrorAction SilentlyContinue)) { continue }
+    $a = @(); if ($c -eq "py") { $a = @("-3") }
+    & $c @a -c "import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)"
+    if ($LASTEXITCODE -eq 0) { $py = $c; $pyArgs = $a; break }
 }
 if (-not $py) { Write-Host "Python 3.11 以上をインストールしてください: https://www.python.org/downloads/" -ForegroundColor Red; exit 1 }
+& $py @pyArgs --version
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) { Write-Host "Git をインストールしてください: https://git-scm.com/" -ForegroundColor Red; exit 1 }
 
 $bs = @("scripts\bootstrap.py"); if ($Only) { $bs += @("--only", $Only) }
