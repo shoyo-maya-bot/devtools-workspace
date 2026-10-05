@@ -83,7 +83,7 @@ VS Code で `devtools.code-workspace` を開くと全リポジトリを 1 画面
 
 ### 選んで取ってくる（devtools 武具屋）
 
-[armory/index.html](armory/index.html) は、リポジトリを RPG の装備に見立てて選ぶページです（ブラウザで開くだけ。GitHub Pages を有効にすれば `https://shoyo-maya-bot.github.io/devtools-workspace/armory/` でも開けます）。
+[armory/index.html](armory/index.html) は、リポジトリを RPG の装備に見立てて選ぶページです（ブラウザで開くだけ。`https://shoyo-maya-bot.github.io/devtools-workspace/armory/` でも公開しています。main の `armory/` が変わると `.github/workflows/pages.yml` がデプロイするので、Settings → Pages の Source は「GitHub Actions」にしておく）。
 
 - 道具を「そうびする」と、選んだリポジトリだけを clone（取得済みなら `git pull --ff-only`）する **詠唱マクロ** が PowerShell 版と bash 版でできる
 - 各道具の **装備スキル** に、その README の使い方をコマンド付きでまとめている
