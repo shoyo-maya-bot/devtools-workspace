@@ -39,7 +39,7 @@ function Test-Wsl2 {
     try {
         $vmp = Get-CimInstance Win32_OptionalFeature -Filter "Name='VirtualMachinePlatform'" -ErrorAction Stop
         if ($vmp -and $vmp.InstallState -ne 1) { return @{ Ok = $false; Note = "仮想マシン プラットフォームが無効です" } }
-    } catch { }
+    } catch { Write-Verbose "仮想マシン プラットフォームの状態を読めませんでした: $_" }
     return @{ Ok = $true; Note = "" }
 }
 
