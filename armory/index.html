@@ -1,0 +1,599 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="devtools のリポジトリを RPG の装備として選び、ローカルに clone / pull するマクロを作るページ">
+<title>devtools 武具屋</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&family=BIZ+UDPGothic:wght@400;700&family=M+PLUS+1+Code:wght@400;600&display=swap">
+<style>
+/* 夜のギルド街の武具屋。RPG のウィンドウ（白い二重枠）を道具に、左に品揃え・右に鑑定、下にステータスと詠唱マクロ。
+   ひとつの世界観に寄せた単一の暗いテーマ（意図的） */
+:root{
+  --bg:#12102e; --bg2:#0c0a22; --panel:#1a1742; --panel2:#221f52;
+  --line:#ece8ff; --fg:#f2effd; --muted:#aaa4d6; --dim:#6f69a3;
+  --gold:#f4c45a; --mint:#7fe3c4; --rose:#ff8fa3; --sky:#8cc8ff;
+  --r1:#c9c5e8; --r2:#8fe3a5; --r3:#8cc8ff; --r4:#d7a2ff; --r5:#f4c45a;
+  --f-display:"DotGothic16","MS Gothic",ui-monospace,monospace;
+  --f-body:"BIZ UDPGothic","Hiragino Sans","Yu Gothic UI",system-ui,sans-serif;
+  --f-code:"M PLUS 1 Code",ui-monospace,"SFMono-Regular",Consolas,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0}
+[hidden]{display:none!important}
+html,body{background:var(--bg);color:var(--fg)}
+body{font-family:var(--f-body);font-size:15px;line-height:1.7;padding-inline:16px;padding-block:20px 48px;
+  background:radial-gradient(1200px 500px at 50% -200px,#2a2468 0%,transparent 70%),var(--bg)}
+canvas.stars{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;opacity:.7}
+.wrap{position:relative;z-index:1;max-width:1180px;margin:0 auto;display:grid;gap:18px}
+h1,h2,h3,.disp{font-family:var(--f-display);font-weight:400;letter-spacing:.04em}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+
+/* RPG window */
+.win{background:var(--panel);border:3px solid var(--line);border-radius:10px;box-shadow:0 0 0 3px var(--bg2),0 0 0 5px var(--dim),0 10px 30px #0008;padding:16px 18px;min-width:0}
+.win>h2{font-size:1.15rem;margin:0 0 10px;color:var(--gold);display:flex;align-items:center;gap:8px}
+.win>h2 small{font-family:var(--f-body);font-size:.78rem;color:var(--muted);letter-spacing:0}
+
+/* header */
+header.top{display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:center}
+.sign{font-family:var(--f-display);font-size:clamp(1.9rem,5vw,3.1rem);line-height:1.1;margin:0;text-wrap:balance;
+  color:var(--gold);text-shadow:3px 3px 0 #6b3d10,0 0 18px #f4c45a55}
+.sign span{color:var(--fg);text-shadow:3px 3px 0 #3b3580}
+.tag{color:var(--muted);margin:6px 0 0;font-size:.95rem}
+.keeper{width:84px;height:84px;image-rendering:pixelated}
+@media (max-width:520px){header.top{grid-template-columns:1fr}.keeper{display:none}}
+
+/* message window */
+.msg{font-family:var(--f-display);font-size:1.05rem;min-height:4.4em;line-height:1.75;position:relative}
+.msg .who{color:var(--gold)}
+.msg .caret{position:absolute;right:16px;bottom:8px;color:var(--gold);animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:0}}
+
+/* main grid */
+.main{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:18px;align-items:start}
+.lower{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:18px;align-items:start}
+@media (max-width:900px){.main,.lower{grid-template-columns:1fr}}
+
+/* shop list */
+.filters{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.chip{border:2px solid var(--dim);background:transparent;border-radius:999px;padding:2px 12px;font-size:.85rem;color:var(--muted)}
+.chip[aria-pressed="true"]{border-color:var(--gold);color:var(--bg);background:var(--gold)}
+.items{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.item{display:grid;grid-template-columns:20px 40px minmax(0,1fr) auto;align-items:center;gap:10px;padding:6px 8px;border-radius:6px;
+  border:2px solid transparent;background:none;text-align:left;width:100%}
+.item:hover{background:var(--panel2)}
+.item[aria-current="true"]{border-color:var(--line);background:var(--panel2)}
+.item .cur{font-family:var(--f-display);color:var(--gold);visibility:hidden}
+.item[aria-current="true"] .cur{visibility:visible;animation:nudge .6s steps(2) infinite}
+@keyframes nudge{50%{transform:translateX(3px)}}
+.item canvas{width:40px;height:40px;image-rendering:pixelated}
+.item .nm{font-family:var(--f-display);font-size:1.02rem;line-height:1.3;display:block}
+.item .repo{font-family:var(--f-code);font-size:.76rem;color:var(--muted);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .eq{font-family:var(--f-display);font-size:.8rem;color:var(--bg);background:var(--mint);border-radius:4px;padding:0 6px}
+.item .eq[hidden]{display:none}
+.stars{font-size:.78rem;letter-spacing:1px}
+
+/* detail */
+.detail .head{display:grid;grid-template-columns:96px minmax(0,1fr);gap:14px;align-items:center}
+.detail .head canvas{width:96px;height:96px;image-rendering:pixelated;background:var(--bg2);border:2px solid var(--dim);border-radius:8px;padding:6px}
+.detail h3{font-size:1.45rem;margin:0;line-height:1.25;text-wrap:balance}
+.meta{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:.85rem;color:var(--muted);margin-top:4px}
+.meta code{font-family:var(--f-code);color:var(--sky)}
+.flavor{margin:12px 0;color:var(--fg);max-width:60ch}
+.stat-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:10px 0 14px}
+.stat-row div{background:var(--bg2);border-radius:6px;padding:6px 8px;text-align:center}
+.stat-row b{display:block;font-family:var(--f-display);font-weight:400;font-size:1.25rem;font-variant-numeric:tabular-nums}
+.stat-row span{font-size:.72rem;color:var(--muted);letter-spacing:.08em}
+.equip-btn{width:100%;font-family:var(--f-display);font-size:1.15rem;padding:10px;border-radius:8px;border:3px solid var(--line);
+  background:var(--gold);color:#2a1a00;box-shadow:0 4px 0 #8a5a12;transition:transform .08s}
+.equip-btn:active{transform:translateY(3px);box-shadow:0 1px 0 #8a5a12}
+.equip-btn.on{background:var(--panel2);color:var(--fg);box-shadow:0 4px 0 var(--bg2)}
+.skill{margin-top:16px;border-top:2px dashed var(--dim);padding-top:12px}
+.skill h4{font-family:var(--f-display);font-weight:400;color:var(--mint);margin:0 0 6px;font-size:1.05rem}
+.skill p{margin:0 0 8px;color:var(--muted);font-size:.9rem}
+.skill ol{margin:0;padding-left:1.3em;display:grid;gap:8px}
+.skill li{padding-left:2px}
+.skill li>span{display:block;font-size:.9rem}
+.cmd{display:flex;gap:6px;align-items:stretch;margin-top:4px}
+.cmd pre{flex:1;min-width:0;margin:0;background:var(--bg2);border:1px solid var(--dim);border-radius:6px;padding:6px 10px;overflow-x:auto;
+  font-family:var(--f-code);font-size:.8rem;line-height:1.55;color:#e7f6ff}
+.mini{border:1px solid var(--dim);background:var(--panel2);border-radius:6px;font-size:.75rem;padding:0 8px;color:var(--muted);white-space:nowrap}
+.mini:hover{color:var(--fg);border-color:var(--line)}
+
+/* status */
+.hero{display:grid;grid-template-columns:72px minmax(0,1fr);gap:12px;align-items:center;margin-bottom:10px}
+.hero canvas{width:72px;height:72px;image-rendering:pixelated}
+.job{font-family:var(--f-display);font-size:1.25rem;color:var(--gold);line-height:1.3}
+.lv{font-family:var(--f-display);color:var(--muted);font-variant-numeric:tabular-nums}
+.bars{display:grid;gap:7px}
+.bar{display:grid;grid-template-columns:3.2em minmax(0,1fr) 2.6em;gap:8px;align-items:center;font-size:.8rem}
+.bar .k{font-family:var(--f-display);color:var(--muted)}
+.bar .t{height:10px;background:var(--bg2);border:1px solid var(--dim);border-radius:3px;overflow:hidden}
+.bar .t i{display:block;height:100%;width:0;transition:width .5s steps(8)}
+.bar .v{text-align:right;font-family:var(--f-display);font-variant-numeric:tabular-nums}
+.bag{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;min-height:44px;align-content:flex-start}
+.bag button{border:2px solid var(--dim);background:var(--bg2);border-radius:6px;padding:2px;line-height:0}
+.bag button:hover{border-color:var(--rose)}
+.bag canvas{width:32px;height:32px;image-rendering:pixelated}
+.bag .empty{color:var(--dim);font-size:.85rem;line-height:1.6;align-self:center}
+.sets{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.sets button{border:2px solid var(--line);background:var(--panel2);border-radius:6px;padding:3px 10px;font-family:var(--f-display);font-size:.88rem}
+.sets button:hover{background:var(--line);color:var(--bg)}
+
+/* macro */
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.tab{border:2px solid var(--dim);background:transparent;border-radius:6px 6px 0 0;padding:3px 12px;font-family:var(--f-display);color:var(--muted)}
+.tab[aria-selected="true"]{border-color:var(--line);color:var(--fg);background:var(--panel2)}
+.field{display:grid;gap:4px;margin-bottom:10px}
+.field label{font-size:.82rem;color:var(--muted)}
+.field input{background:var(--bg2);border:2px solid var(--dim);border-radius:6px;color:var(--fg);padding:6px 10px;font-family:var(--f-code);font-size:.9rem;width:100%}
+.scroll{background:var(--bg2);border:2px solid var(--dim);border-radius:8px;padding:12px;overflow-x:auto;margin:0;
+  font-family:var(--f-code);font-size:.8rem;line-height:1.6;color:#e7f6ff;max-height:320px}
+.scroll .c{color:var(--dim)}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.act{font-family:var(--f-display);border:3px solid var(--line);border-radius:8px;padding:6px 14px;background:var(--mint);color:#062a20;box-shadow:0 3px 0 #2d7f67}
+.act.sub{background:var(--panel2);color:var(--fg);box-shadow:0 3px 0 var(--bg2)}
+.act:disabled{opacity:.45;cursor:not-allowed}
+.how{margin-top:14px;font-size:.88rem;color:var(--muted)}
+.how summary{font-family:var(--f-display);color:var(--fg);cursor:pointer}
+.how ol{margin:8px 0 0;padding-left:1.3em;display:grid;gap:4px}
+.how code{font-family:var(--f-code);color:var(--sky);font-size:.85em}
+.note{font-size:.8rem;color:var(--dim);margin-top:8px}
+
+/* level up */
+.levelup{position:fixed;left:50%;top:38%;transform:translate(-50%,-50%);z-index:5;font-family:var(--f-display);font-size:clamp(1.6rem,6vw,3rem);
+  color:var(--gold);text-shadow:3px 3px 0 #6b3d10;pointer-events:none;animation:pop 1.4s steps(10) forwards;white-space:nowrap}
+@keyframes pop{0%{opacity:0;transform:translate(-50%,-30%)}20%{opacity:1;transform:translate(-50%,-55%)}80%{opacity:1}100%{opacity:0;transform:translate(-50%,-70%)}}
+footer{color:var(--dim);font-size:.8rem;text-align:center}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<canvas class="stars" id="stars" aria-hidden="true"></canvas>
+<div class="wrap">
+  <header class="top">
+    <canvas class="keeper" id="keeper" width="16" height="16" aria-hidden="true"></canvas>
+    <div>
+      <h1 class="sign">devtools <span>武具屋</span></h1>
+      <p class="tag">shoyo-maya-bot の 15 リポジトリを取りそろえた店。そうびすると、ローカルに呼び出す「詠唱マクロ」ができあがる。</p>
+    </div>
+  </header>
+
+  <section class="win msg" aria-live="polite"><span class="who">店主：</span><span id="msgText"></span><span class="caret" aria-hidden="true">▼</span></section>
+
+  <div class="main">
+    <section class="win" aria-labelledby="shopH">
+      <h2 id="shopH">品揃え <small id="count"></small></h2>
+      <div class="filters" id="filters" role="group" aria-label="種類でしぼる"></div>
+      <ul class="items" id="items"></ul>
+    </section>
+
+    <section class="win detail" aria-labelledby="dName" id="detail"></section>
+  </div>
+
+  <div class="lower">
+    <section class="win" aria-labelledby="stH">
+      <h2 id="stH">ステータス</h2>
+      <div class="hero">
+        <canvas id="heroCv" width="16" height="16" aria-hidden="true"></canvas>
+        <div><div class="job" id="job"></div><div class="lv" id="lv"></div></div>
+      </div>
+      <div class="bars" id="bars"></div>
+      <div class="bag" id="bag" aria-label="そうび中（クリックではずす）"></div>
+      <div class="sets" id="sets"></div>
+    </section>
+
+    <section class="win" aria-labelledby="mcH">
+      <h2 id="mcH">詠唱マクロ <small>そうび中の道具をまとめて呼び出す</small></h2>
+      <div class="tabs" role="tablist" id="tabs">
+        <button class="tab" role="tab" id="tab-ps" data-os="ps" aria-selected="true">Windows（PowerShell）</button>
+        <button class="tab" role="tab" id="tab-sh" data-os="sh" aria-selected="false">macOS・Linux（bash）</button>
+      </div>
+      <div class="field">
+        <label for="dir">保存先のフォルダ（~ はホーム。bootstrap.py が兄弟フォルダ前提なので全部同じ場所に）</label>
+        <input id="dir" value="~/devtools" spellcheck="false" autocomplete="off">
+      </div>
+      <pre class="scroll" id="macro" tabindex="0" aria-label="詠唱マクロ"></pre>
+      <div class="actions">
+        <button class="act" id="copy">マクロをコピー</button>
+        <button class="act sub" id="save" hidden>巻物（.txt）で保存</button>
+      </div>
+      <details class="how">
+        <summary>唱えかた</summary>
+        <ol>
+          <li>品揃えで道具を選び「そうびする」。おすすめセットでもよい。</li>
+          <li>OS のタブを選び、保存先を決めて「マクロをコピー」。</li>
+          <li>Windows は PowerShell、mac・Linux はターミナルに貼りつけて Enter。</li>
+          <li>まだ無いものは <code>git clone</code>（そうび）、もうあるものは <code>git pull --ff-only</code>（強化）。何度唱えても壊れない。</li>
+          <li>あとは各道具の「装備スキル」の手順どおりに使う。</li>
+        </ol>
+        <p class="note">必要なもの: Git。マクロは公開リポジトリを読むだけで、何も送らない。</p>
+      </details>
+    </section>
+  </div>
+
+  <footer>items: <span id="foot"></span> ／ 何度でも来店どうぞ</footer>
+</div>
+
+<script>
+const ORG = "shoyo-maya-bot";
+const SLOTS = {weapon:"武器",armor:"防具",acc:"装飾品",tome:"魔導書",tool:"道具",ally:"仲間"};
+const RC = ["","var(--r1)","var(--r2)","var(--r3)","var(--r4)","var(--r5)"];
+
+/* 12x12 のドット絵。a=本体色 b=暗 c=明 d=金 w=白 k=黒 */
+const ICONS = {
+sword:["..........cc",".........cac","........cac.",".......cac..","......cac...",".....cac....",".d..cac.....",".dd.ac......","..ddb.......","..bdd.......",".bb.dd......","bb.........."],
+shield:[".dddddddddd.","dbbbbbbbbbbd","dbaaaaaaaabd","dbaacccaaabd","dbaacccaaabd","dbaaaaaaaabd","dbaaaaaaaabd",".dbaaaaaabd.",".dbaaaaaabd.","..dbaaaabd..","...dbaabd...","....dddd...."],
+armor:["..bb....bb..",".baab..baab.","baaaabbaaaab","baaaaaaaaaab",".baaacaaaab.","..baacaaab..","..baacaaab..","..baaaaaab..","..bddddddb..","..baaaaaab..","..baaaaaab..","..bbbbbbbb.."],
+staff:[".........ww.","........wccw","........cacc",".......dcac.","......dd.c..",".....dd.....","....bb......","...bb.......","..bb........",".bb.........","bb..........","b..........."],
+ring:["............","....wcw.....","...cacac....","....wcw.....","....dddd....","...d....d...","..d......d..","..d......d..","..d......d..","...d....d...","....dddd....","............"],
+scroll:["............",".bbbbbbbbbb.","bccccccccccb",".bwwwwwwwwb.",".bwaaaawwwb.",".bwwwwwwwwb.",".bwaaawwwwb.",".bwwwwwwwwb.",".bwaaaaawwb.",".bwwwwwwwwb.","bccccccccccb",".bbbbbbbbbb."],
+book:["............",".bbbbbbbbb..","baaaaaaaaab.","baaddddaaab.","baadaadaaab.","baaddddaaab.","baaaaaaaaab.","baaaaaaaaab.","baaaaaaaaab.","bwwwwwwwwwb.","bbbbbbbbbbb.","............"],
+orb:["....bbbb....","..bbaaaabb..",".baawcaaaab.",".bawcaaaaab.","baacaaaaaaab","baaaaaaaaaab","baaaaaaaaaab",".baaaaaaaab.",".bbaaaaaabb.","...bbbbbb...","..dddddddd..",".dddddddddd."],
+glasses:["............","............","............",".bbbb..bbbb.","bwcab..bwcab","bcaabbbbcaab","baaab..baaab",".bbbb..bbbb.","............","............","............","............"],
+card:["..bbbbbbbb..","..bwwwwwwb..","..bwaaaawb..","..bwadaawb..","..bwaddawb..","..bwaadawb..","..bwaaaawb..","..bwwwwwwb..","..bwddddwb..","..bwwwwwwb..","..bbbbbbbb..","............"],
+horn:["............","..........dd","........ddad","......ddaaad","...ddaaaaaad",".ddaaaaaaaad","d.aaaaaaaaad",".ddaaaaaaaad","...ddaaaaaad","......ddaaad","........ddad","..........dd"],
+slime:["............",".....bb.....","....baab....","...baaaab...","..bacaaaab..","..baaaaaab..",".baawaawaab.",".baakaakaab.","baaaaaaaaaab","baaaaaaaaaab",".bbbbbbbbbb.","............"]
+};
+
+/* 品揃え。skill は README の手順から */
+const ITEMS = [
+{id:"devtools-workspace",name:"ギルドの大地図",slot:"acc",icon:"scroll",color:"#e8c27a",r:5,st:[2,4,6,9],
+ flavor:"すべての道具の在りかが記された地図。これを持つ者は、ほかの 14 の道具を一度に呼び寄せられる。",
+ lore:"親ワークスペース。マニフェスト repos.yaml・一括操作・パイプライン例・共通 CI。",
+ skill:{p:"最初にそうびする拠点。ほかの道具も同じフォルダに並べる前提。",steps:[
+  ["セットアップ（Windows は setup.cmd）","./setup.sh"],
+  ["兄弟フォルダに全リポを clone","python scripts/bootstrap.py clone"],
+  ["Python の道具を共有 .venv に一括インストール","python scripts/bootstrap.py install"],
+  ["各リポのブランチ・未コミット・最新タグ","python scripts/bootstrap.py status"],
+  ["VS Code で全リポを 1 ウィンドウに","code devtools.code-workspace"]]}},
+{id:".github",name:"ギルド規約の羊皮紙",slot:"acc",icon:"scroll",color:"#c9b48a",r:1,st:[0,3,2,0],
+ flavor:"ギルドの決まりごと。持っているだけで効く、目立たないが大事な一枚。",
+ lore:"アカウント共通の既定ファイル（PR・Issue テンプレート、CONTRIBUTING など）。",
+ skill:{p:"パッシブスキル。唱える呪文はない。",steps:[
+  ["各リポで PR・Issue を作ると、既定のテンプレートが自動で出る",""],
+  ["リポ側に同名ファイルがあれば、そちらが優先される",""]]}},
+{id:"devtools-common",name:"共鳴の指輪",slot:"acc",icon:"ring",color:"#8cc8ff",r:3,st:[1,5,5,2],
+ flavor:"道具どうしを同じ作法で響き合わせる指輪。CLI の規約・ログ・一時ファイル・HTTP・レポートを束ねる。",
+ lore:"開発支援ツール群が共通で使う Python ライブラリ。",
+ skill:{p:"ほかの Python 道具の土台。単体で振るうものではない。",steps:[
+  ["開発用セットアップ（Windows は .\\scripts\\setup.ps1 -Dev）","./setup.sh --dev"],
+  ["push 前に CI と同じゲートを同じ順で","python scripts/verify_gates.py"],
+  ["道具側の pyproject.toml ではコミット SHA で固定して依存","devtools-common @ git+https://github.com/shoyo-maya-bot/devtools-common.git@<SHA>"]]}},
+{id:"dev-environment",name:"二段構えの鎧",slot:"armor",icon:"armor",color:"#7c8bd6",r:4,st:[3,9,4,3],
+ flavor:"ローカルで鍛え、クラウドで試す。二枚重ねの守りで結合テストの不意打ちを防ぐ鎧。",
+ lore:"ローカル（docker compose）とクラウド（AWS + Terraform）の開発環境、Spring Boot のサンプルアプリ。",
+ skill:{p:"新しく参加した人は local/ から。Java 17・Spring Boot・MyBatis・Gradle。",steps:[
+  ["Windows 11 の環境づくり（WSL2・Rancher Desktop・Corretto・VS Code）","local/README.md を読む"],
+  ["DB と S3 エミュレータを起動（healthy まで待つ）","cd local && docker compose up -d --wait"],
+  ["sample-app（会員 API・注文取込バッチ）で動作確認","sample-app/"],
+  ["教材の演習前のコードとの差分","git diff exercise-base main -- sample-app"],
+  ["クラウド（ECS Fargate・Aurora など）","cloud/README.md を読む"]]}},
+{id:"ai-coding",name:"聖剣 エーアイコーディング",slot:"weapon",icon:"sword",color:"#9fe8ff",r:5,st:[10,4,7,6],
+ flavor:"設計書を読ませれば、コードと単体テストを β 版として斬り出す聖剣。品質ゲートという鞘に収めて使う。",
+ lore:"AI と進める設計 → 実装 → 単体テスト → レビューの手順・品質ゲート・エージェント・対応表（spec-trace 同梱）。",
+ skill:{p:"GitHub Copilot のエージェントで使う。AI の出力は下書き扱い。",steps:[
+  ["対応表の検証ツールを入れる","pip install -e tools/spec-trace"],
+  ["品質ゲートを最後まで（Windows は .\\scripts\\verify-gates.ps1 -Final）","./scripts/verify-gates.sh --final"],
+  ["Copilot Chat で計画から PR まで","/ai-plan … /ai-pr"],
+  ["進み具合を聞く","/ai-status"]]}},
+{id:"doc-to-markdown",name:"変換の杖 ドクツーエムディー",slot:"weapon",icon:"staff",color:"#c79bff",r:4,st:[7,2,8,5],
+ flavor:"Office・PDF・図を Markdown に変える杖。変換で何かが失われれば、杖が震えて知らせる。",
+ lore:"Office / PDF / draw.io を Markdown に変換（変換ロスの検知、llms.txt、figspec で YAML → draw.io）。",
+ skill:{p:"CLI 名は doc2md。外部ソフトの有無はまず --check-env で。",steps:[
+  ["1 ファイル変換（out/仕様書.md と .assets/）","doc2md 仕様書.docx -d out/"],
+  ["フォルダ一括、失敗しても続行","doc2md docs/ -d out/ -r --continue-on-error"],
+  ["AI に読ませる形で（Front Matter と llms.txt）","doc2md 設計書/ -d out/ -r --front-matter --llms-txt"],
+  ["スキャン PDF を OCR","doc2md scan.pdf -d out/ --ocr-lang jpn"],
+  ["YAML から draw.io の図を作る","figspec build samples/figspec/approval-flow.yaml --svg"]]}},
+{id:"office-review",name:"五賢者の盾",slot:"armor",icon:"shield",color:"#6fd0a8",r:4,st:[3,8,7,2],
+ flavor:"5 人の賢者（ロール）の目で設計資料を受け止める盾。採択・不採択を重ねるほど硬くなる。",
+ lore:"設計資料のレビューハーネス（観点・マルチロール・指摘の蓄積とダッシュボード）。表の項目間検証 fieldcheck を同梱。",
+ skill:{p:"CLI 名は harness。3 ステップでまず試せる。",steps:[
+  ["セットアップ（Windows は setup.cmd をダブルクリック）","./setup.sh"],
+  ["機械で分かる不足を先に潰す","harness precheck inputs/api/x.md --type api"],
+  ["Copilot Chat で AI レビュー（同梱サンプル）","/review inputs/api/order-api.md"],
+  ["指摘ごとに採択 / 不採択を選ぶ","harness dashboard"],
+  ["判定を蓄積して観点を育てる","harness accumulate"]]}},
+{id:"design-diff",name:"見破りの眼鏡",slot:"acc",icon:"glasses",color:"#ffb36b",r:3,st:[4,3,6,4],
+ flavor:"新旧の設計書を重ねて見ると、変わったセルだけが光って見える眼鏡。API 定義書のうそも見抜く。",
+ lore:"Excel 設計書の新旧差分と、API 定義書（Excel）と OpenAPI の整合チェック。",
+ skill:{p:"結果はレビューにそのまま貼れる Markdown。",steps:[
+  ["API 設計書の新旧差分","design-diff excel --type api --before old.xlsx --after new.xlsx"],
+  ["設定のペアをまとめて output/ へ","design-diff excel --all"],
+  ["API 定義書と OpenAPI の整合","design-diff spec --excel API定義書.xlsx --oas openapi.yaml"]]}},
+{id:"quality-analytics",name:"分析の水晶玉",slot:"acc",icon:"orb",color:"#b08cff",r:3,st:[2,3,8,3],
+ flavor:"集めた指摘をのぞき込むと、欠陥とノイズ、真因の傾向が浮かんでくる水晶玉。",
+ lore:"レビュー指摘を集めて分類（欠陥・ノイズ・確認／観点／真因）し、傾向を分析（LLM API は任意・有料）。",
+ skill:{p:"CLI 名は qa。collect → classify → analyze の順。",steps:[
+  ["指摘表（Excel / CSV）を集める","qa collect table samples/指摘一覧.xlsx"],
+  ["office-review の結果も集める","qa collect office-review --reviews samples/office-review/reviews --history samples/office-review/history.jsonl"],
+  ["ルールで分類（無料）","qa classify --mode rules"],
+  ["分析して dashboard.html を開く","qa analyze"]]}},
+{id:"office-replace",name:"すり替えの魔法札",slot:"tool",icon:"card",color:"#ff8fa3",r:2,st:[5,1,3,7],
+ flavor:"社名、年度、シート名。資料の中の言葉をまとめて書き換える札。使う前に必ず試し撃ちを。",
+ lore:"Excel / Word / PowerPoint の文字列・図形・シート名・ファイル名をワイルドカードで一括置換。",
+ skill:{p:"--dry-run で置換箇所を確かめてから書き出す。",steps:[
+  ["試し撃ち（書き換えない）","office-replace samples/input --rules samples/rules.xlsx -r --dry-run"],
+  ["out/ に書き出す","office-replace samples/input --rules samples/rules.xlsx -r -o out"],
+  ["置換表なしで 1 語だけ","office-replace 資料フォルダ -o 出力 --from \"サンプル商事\" --to \"〇〇商事\" --target all"]]}},
+{id:"backlog-report",name:"伝令の角笛",slot:"tool",icon:"horn",color:"#f4c45a",r:2,st:[3,2,4,6],
+ flavor:"吹けば進捗が Slack と Wiki に届く角笛。遅れている者の名も、ガントとバーンダウンで響かせる。",
+ lore:"Backlog の進捗レポート（遅延・担当者別・ガント・バーンダウン）を Slack と Wiki へ。",
+ skill:{p:"設定は config.yaml。まずサンプル設定で。",steps:[
+  ["セットアップ（Windows は setup.cmd）","./setup.sh"],
+  ["画面に Markdown で","backlog-report -c samples/config.yaml report"],
+  ["マイルストーンで絞る","backlog-report -c samples/config.yaml report --milestone \"フェーズ2 製造\""],
+  ["レポートとグラフを出して Wiki へ","backlog-report -c samples/config.yaml batch --wiki"]]}},
+{id:"slack-agenda-bot",name:"議事の使い魔",slot:"ally",icon:"slime",color:"#7fe3c4",r:2,st:[1,3,3,8],
+ flavor:"定例の前になると議題を集めてまわる小さな使い魔。会議時間からあふれた議題は次回へ運ぶ。",
+ lore:"定例会議のアジェンダを /agenda で集めて Canvas にまとめる Slack ボット（DynamoDB）。",
+ skill:{p:"必要なもの: Python 3.12、Docker、アプリを追加できる Slack ワークスペース。",steps:[
+  ["セットアップ（.venv・DynamoDB Local・テーブル）","./setup.sh"],
+  ["docs/setup.md の手順で Slack アプリを作り、.env にトークン",""],
+  ["起動","agenda-bot"],
+  ["チャンネルで呼ぶ","/agenda"]]}},
+{id:"slide-tool",name:"語り部の魔導書",slot:"tome",icon:"book",color:"#5a9cff",r:3,st:[4,2,6,5],
+ flavor:"1 枚に 1 メッセージ。Markdown で書いた物語を、PDF や PPTX の語りに変える魔導書。",
+ lore:"Marp + Tailwind でスライドを Markdown から作る（レイアウト集・はみ出しチェック・PDF / PPTX）。",
+ skill:{p:"Node.js の道具。slides/*.md に 1 ファイル 1 資料。",steps:[
+  ["依存を入れる","npm install"],
+  ["編集しながらプレビュー","npm run watch"],
+  ["はみ出しチェック","npm run check"],
+  ["PDF / PPTX に","npm run pdf && npm run pptx"]]}},
+{id:"learning-materials",name:"見習いの教本",slot:"tome",icon:"book",color:"#8fe3a5",r:2,st:[1,3,7,2],
+ flavor:"Java 17・Spring Boot・MyBatis・JUnit・Karate。新しく来た者が最初に開く一冊。",
+ lore:"開発者向け教材（環境構築・基礎・実ソース読解・API・非同期・設計品質）。GitHub Pages で公開。",
+ skill:{p:"演習は dev-environment の exercise-base ブランチで解く。",steps:[
+  ["依存を入れる","pip install -r requirements.txt"],
+  ["手元でサイトを開く（http://127.0.0.1:8000）","mkdocs serve"],
+  ["CI と同じビルド（リンク切れで失敗）","mkdocs build --strict"]]}},
+{id:"agent-lab",name:"禁書 自律の研究",slot:"tome",icon:"book",color:"#d24f6b",r:4,st:[6,1,9,4],
+ flavor:"AI にどこまで任せられるかを記した、まだ書きかけの禁書。読むたびにページが増えている。",
+ lore:"AI エージェントの実験（MCP・自律度・マルチモデルの相互レビュー）。PR の自動レビューもここに。",
+ skill:{p:"課題は sample-app と架空の設計書だけ。実案件のデータは使わない。",steps:[
+  ["方針と実験計画","docs/DESIGN.md を読む"],
+  ["MCP の設定例（VS Code・Claude Code）","examples/"],
+  ["Copilot で PR を自動レビュー（ふだんは Sonnet）","/review-auto"],
+  ["危ない PR を Opus で深く","/review-deep"]]}}
+];
+
+const STATK = ["ATK","DEF","INT","SPD"];
+const STATN = ["こうげき","しゅび","かしこさ","すばやさ"];
+const STATC = ["var(--rose)","var(--sky)","var(--r4)","var(--mint)"];
+
+const JOBS = [
+ [ids=>ids.length===ITEMS.length,"devtools 大魔導師"],
+ [ids=>["ai-coding","dev-environment","agent-lab"].every(x=>ids.includes(x)),"AI エージェント使い"],
+ [ids=>["ai-coding","dev-environment"].every(x=>ids.includes(x)),"AI コーディング勇者"],
+ [ids=>["office-review","design-diff","doc-to-markdown"].every(x=>ids.includes(x)),"設計書レビュー賢者"],
+ [ids=>["office-review","quality-analytics"].every(x=>ids.includes(x)),"品質の占い師"],
+ [ids=>["backlog-report","slack-agenda-bot"].every(x=>ids.includes(x)),"プロジェクト番頭"],
+ [ids=>["slide-tool","office-replace"].every(x=>ids.includes(x)),"資料錬金術師"],
+ [ids=>ids.includes("learning-materials"),"見習いエンジニア"],
+ [ids=>ids.includes("devtools-workspace"),"ギルド所属の冒険者"],
+ [ids=>ids.length===0,"すっぴんの旅人"],
+ [()=>true,"さすらいの SE"]
+];
+
+const SETS = [
+ ["新人セット",["devtools-workspace","learning-materials","dev-environment"]],
+ ["AI 開発セット",["devtools-workspace","devtools-common","ai-coding","dev-environment","agent-lab"]],
+ ["設計レビューセット",["devtools-workspace","devtools-common","doc-to-markdown","office-review","design-diff","quality-analytics"]],
+ ["全部そうび",ITEMS.map(i=>i.id)],
+ ["ぜんぶはずす",[]]
+];
+
+/* ---------- 状態 ---------- */
+const store = {
+ get(k,d){try{const v=localStorage.getItem("armory:"+k);return v==null?d:JSON.parse(v)}catch(e){return d}},
+ set(k,v){try{localStorage.setItem("armory:"+k,JSON.stringify(v))}catch(e){}}
+};
+let equipped = new Set(store.get("eq",[]).filter(id=>ITEMS.some(i=>i.id===id)));
+let current = store.get("cur",ITEMS[4].id);
+let os = store.get("os","ps");
+let filter = "all";
+let lastLevel = level();
+
+/* ---------- ドット絵 ---------- */
+function mix(hex,t){const n=parseInt(hex.slice(1),16);let r=n>>16,g=n>>8&255,b=n&255;
+ const to=t<0?0:255,a=Math.abs(t);r=Math.round(r+(to-r)*a);g=Math.round(g+(to-g)*a);b=Math.round(b+(to-b)*a);
+ return "#"+((1<<24)|(r<<16)|(g<<8)|b).toString(16).slice(1)}
+function drawIcon(cv,item){
+ const pat=ICONS[item.icon];cv.width=12;cv.height=12;const x=cv.getContext("2d");x.clearRect(0,0,12,12);
+ const pal={a:item.color,b:mix(item.color,-.55),c:mix(item.color,.45),d:"#f4c45a",w:"#ffffff",k:"#14112e"};
+ pat.forEach((row,y)=>[...row].forEach((ch,i)=>{if(pal[ch]){x.fillStyle=pal[ch];x.fillRect(i,y,1,1)}}));
+}
+/* 主人公と店主（16x16） */
+const HERO=["......kkkk......",".....kddddk.....","....kddddddk....","....kwwwwwwk....","....kwkwwkwk....","....kwwwwwwk....",".....kwwwwk.....","....kaaaaaak....","...kaaccaaaak...","..kwkaaccaaakwk.","..kwkaaaaaakwk..","....kaaaaaak....","....kbbkkbbk....","....kbk..kbk....","...kkbk..kbkk...","...kkk....kkk..."];
+const KEEPER=[".....kkkkkk.....","....kccccccck...","...kccccccccck..","..kkkkkkkkkkkkk.","....kwwwwwwk....","....kwkwwkwk....","....kwwwwwwk....","....kbbbbbbk....","...kbbwwwwbbk...","..kaabwwwwbaak..","..kwkaaaaaakwk..","....kaaaaaak....","...kddddddddk...","...kaaaaaaaak...","...kaak..kaak...","...kkk....kkk..."];
+function drawSprite(cv,pat,pal){const x=cv.getContext("2d");x.clearRect(0,0,16,16);
+ pat.forEach((row,y)=>[...row].forEach((ch,i)=>{if(pal[ch]){x.fillStyle=pal[ch];x.fillRect(i,y,1,1)}}))}
+
+/* ---------- 計算 ---------- */
+function eqItems(){return ITEMS.filter(i=>equipped.has(i.id))}
+function totals(){const t=[0,0,0,0];eqItems().forEach(i=>i.st.forEach((v,k)=>t[k]+=v));return t}
+function level(){return 1+eqItems().reduce((s,i)=>s+i.r*2,0)}
+function job(){const ids=[...equipped];return JOBS.find(([f])=>f(ids))[1]}
+
+/* ---------- メッセージ（タイプライター） ---------- */
+let typing=null;
+function say(text){const el=document.getElementById("msgText");clearInterval(typing);
+ if(matchMedia("(prefers-reduced-motion: reduce)").matches){el.textContent=text;return}
+ let i=0;el.textContent="";typing=setInterval(()=>{el.textContent=text.slice(0,++i);if(i>=text.length)clearInterval(typing)},28)}
+
+/* ---------- 描画 ---------- */
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+function stars(r){return `<span class="stars" style="color:${RC[r]}" aria-label="レア度 ${r}">${"★".repeat(r)}<span style="color:var(--dim)">${"★".repeat(5-r)}</span></span>`}
+
+function renderFilters(){
+ const f=document.getElementById("filters");
+ const kinds=[["all","すべて"],...Object.entries(SLOTS).filter(([k])=>ITEMS.some(i=>i.slot===k))];
+ f.innerHTML=kinds.map(([k,v])=>`<button class="chip" data-f="${k}" aria-pressed="${filter===k}">${v}</button>`).join("");
+}
+function renderList(){
+ const ul=document.getElementById("items");
+ const list=ITEMS.filter(i=>filter==="all"||i.slot===filter);
+ ul.innerHTML=list.map(i=>`<li><button class="item" data-id="${esc(i.id)}" aria-current="${i.id===current}">
+   <span class="cur" aria-hidden="true">▶</span><canvas data-icon="${esc(i.id)}"></canvas>
+   <span style="min-width:0"><span class="nm">${esc(i.name)}</span><span class="repo">${SLOTS[i.slot]} ・ ${esc(i.id)}</span></span>
+   <span style="display:grid;justify-items:end;gap:2px">${stars(i.r)}<span class="eq" ${equipped.has(i.id)?"":"hidden"}>E</span></span>
+ </button></li>`).join("");
+ ul.querySelectorAll("canvas[data-icon]").forEach(c=>drawIcon(c,ITEMS.find(i=>i.id===c.dataset.icon)));
+ document.getElementById("count").textContent=`${list.length} 点`;
+}
+function renderDetail(){
+ const i=ITEMS.find(x=>x.id===current);const on=equipped.has(i.id);
+ const d=document.getElementById("detail");
+ d.innerHTML=`<div class="head"><canvas id="bigIcon"></canvas><div style="min-width:0">
+   <h3 id="dName" style="color:${RC[i.r]}">${esc(i.name)}</h3>
+   <div class="meta"><span>${SLOTS[i.slot]}</span>${stars(i.r)}<code>${esc(ORG)}/${esc(i.id)}</code></div></div></div>
+  <p class="flavor">${esc(i.flavor)}</p>
+  <div class="stat-row">${i.st.map((v,k)=>`<div><b style="color:${STATC[k]}">+${v}</b><span>${STATK[k]}</span></div>`).join("")}</div>
+  <button class="equip-btn ${on?"on":""}" id="equipBtn">${on?"はずす":"そうびする"}</button>
+  <div class="skill"><h4>装備スキル</h4><p>${esc(i.lore)}<br>${esc(i.skill.p)}</p>
+   <ol>${i.skill.steps.map(([t,c])=>`<li><span>${esc(t)}</span>${c?`<div class="cmd"><pre>${esc(c)}</pre><button class="mini" data-copy="${esc(c)}">コピー</button></div>`:""}</li>`).join("")}</ol>
+   <p style="margin-top:10px"><a href="https://github.com/${ORG}/${encodeURIComponent(i.id)}" target="_blank" rel="noopener" style="color:var(--sky)">GitHub で README を読む ↗</a></p>
+  </div>`;
+ drawIcon(document.getElementById("bigIcon"),i);
+}
+function renderStatus(){
+ const t=totals(),max=Math.max(20,...t);
+ document.getElementById("job").textContent=job();
+ document.getElementById("lv").textContent=`Lv ${level()} ・ そうび ${equipped.size}/${ITEMS.length}`;
+ document.getElementById("bars").innerHTML=t.map((v,k)=>`<div class="bar" title="${STATN[k]}"><span class="k">${STATK[k]}</span>
+   <span class="t"><i style="width:${Math.round(v/max*100)}%;background:${STATC[k]}"></i></span><span class="v">${v}</span></div>`).join("");
+ const bag=document.getElementById("bag");const eq=eqItems();
+ bag.innerHTML=eq.length?eq.map(i=>`<button data-un="${esc(i.id)}" title="${esc(i.name)}（クリックではずす）" aria-label="${esc(i.name)}をはずす"><canvas data-icon="${esc(i.id)}"></canvas></button>`).join("")
+  :`<span class="empty">そうび中の道具はまだない。</span>`;
+ bag.querySelectorAll("canvas[data-icon]").forEach(c=>drawIcon(c,ITEMS.find(i=>i.id===c.dataset.icon)));
+ const hero=document.getElementById("heroCv");
+ const armor=eq.find(i=>i.slot==="armor"), acc=eq.find(i=>i.r===5)||eq[0];
+ drawSprite(hero,HERO,{k:"#0b0a20",d:acc?"#f4c45a":"#8a7a5a",w:"#ffd9b8",a:armor?armor.color:"#6b6599",b:"#3b3570",c:acc?acc.color:"#9a94c8"});
+ document.getElementById("sets").innerHTML=SETS.map(([n],k)=>`<button data-set="${k}">${n}</button>`).join("");
+}
+function homePath(raw,kind){
+ let p=(raw||"~/devtools").trim();
+ if(kind==="ps"){p=p.replace(/\//g,"\\");if(p.startsWith("~"))p="$HOME"+p.slice(1);return p.replace(/"/g,"")}
+ if(p.startsWith("~"))p="$HOME"+p.slice(1);return p.replace(/"/g,"")
+}
+function macroText(){
+ const ids=eqItems().map(i=>i.id);const dir=document.getElementById("dir").value;
+ if(!ids.length)return null;
+ if(os==="ps"){
+  return `# devtools armory - equip macro (PowerShell)
+$base = "${homePath(dir,"ps")}"
+$repos = @(${ids.map(r=>`"${r}"`).join(", ")})
+New-Item -ItemType Directory -Force -Path $base | Out-Null
+foreach ($r in $repos) {
+  $dst = Join-Path $base $r
+  if (Test-Path (Join-Path $dst ".git")) {
+    Write-Host "[upgrade] $r"; git -C $dst pull --ff-only
+  } else {
+    Write-Host "[equip] $r"; git clone "https://github.com/${ORG}/$r.git" $dst
+  }
+}
+Write-Host "done -> $base"`;
+ }
+ return `# devtools armory - equip macro (bash)
+base="${homePath(dir,"sh")}"
+mkdir -p "$base"
+for r in ${ids.join(" ")}; do
+  if [ -d "$base/$r/.git" ]; then
+    echo "[upgrade] $r"; git -C "$base/$r" pull --ff-only
+  else
+    echo "[equip] $r"; git clone "https://github.com/${ORG}/$r.git" "$base/$r"
+  fi
+done
+echo "done -> $base"`;
+}
+function renderMacro(){
+ document.querySelectorAll(".tab").forEach(b=>b.setAttribute("aria-selected",b.dataset.os===os));
+ const t=macroText();const pre=document.getElementById("macro");
+ if(!t){pre.innerHTML=`<span class="c"># まだ何もそうびしていない。品揃えから選ぶか、おすすめセットを。</span>`}
+ else pre.innerHTML=esc(t).replace(/^(#.*)$/m,'<span class="c">$1</span>');
+ document.getElementById("copy").disabled=!t;document.getElementById("save").disabled=!t;
+}
+function renderAll(){renderFilters();renderList();renderDetail();renderStatus();renderMacro();document.getElementById("foot").textContent=ITEMS.length}
+
+function persist(){store.set("eq",[...equipped]);store.set("cur",current);store.set("os",os)}
+function afterChange(){
+ const lv=level();if(lv>lastLevel&&equipped.size)levelUp(lv);lastLevel=lv;persist();
+ renderList();renderDetail();renderStatus();renderMacro();
+}
+function levelUp(lv){const el=document.createElement("div");el.className="levelup";el.textContent=`レベル ${lv} に あがった！`;
+ document.body.appendChild(el);setTimeout(()=>el.remove(),1500)}
+
+function toggle(id){
+ const i=ITEMS.find(x=>x.id===id);const before=job();
+ if(equipped.has(id)){equipped.delete(id);say(`${i.name}を はずした。`);}
+ else{equipped.add(id);const bump=i.st.map((v,k)=>[v,k]).sort((a,b)=>b[0]-a[0])[0];
+  say(`${i.name}を そうびした！ ${STATN[bump[1]]}が ${bump[0]} あがった！`);}
+ afterChange();
+ const after=job();if(after!==before&&equipped.has(id))setTimeout(()=>say(`ジョブが「${after}」に かわった！`),1400);
+}
+
+/* ---------- イベント ---------- */
+document.addEventListener("click",async e=>{
+ const t=e.target.closest("button,[data-copy]");if(!t)return;
+ if(t.dataset.f){filter=t.dataset.f;renderFilters();renderList();return}
+ if(t.classList.contains("item")){current=t.dataset.id;persist();renderList();renderDetail();
+  const i=ITEMS.find(x=>x.id===current);say(`${i.name}か。${i.flavor.split("。")[0]}。`);return}
+ if(t.id==="equipBtn"){toggle(current);return}
+ if(t.dataset.un){toggle(t.dataset.un);return}
+ if(t.dataset.set!=null){const [n,ids]=SETS[+t.dataset.set];equipped=new Set(ids);
+  say(ids.length?`「${n}」を まとめて そうびした！`:"ぜんぶ はずして すっぴんに もどった。");afterChange();return}
+ if(t.dataset.os){os=t.dataset.os;persist();renderMacro();return}
+ if(t.dataset.copy!=null){copyText(t.dataset.copy,t,null);return}
+ if(t.id==="copy"){const m=macroText();if(m)copyText(m,t,document.getElementById("macro"));return}
+ if(t.id==="save"){saveScroll();return}
+});
+document.getElementById("dir").addEventListener("input",()=>{store.set("dir",document.getElementById("dir").value);renderMacro()});
+async function copyText(text,btn,pre){
+ const old=btn.textContent;
+ try{await navigator.clipboard.writeText(text);btn.textContent="コピーした！";
+  if(btn.id==="copy")say(os==="ps"?"マクロを 覚えた。PowerShell に 貼りつけて 唱えよ！":"マクロを 覚えた。ターミナルに 貼りつけて 唱えよ！");}
+ catch(err){if(pre){const r=document.createRange();r.selectNodeContents(pre);const s=getSelection();s.removeAllRanges();s.addRange(r)}
+  btn.textContent="選択したので手でコピー"}
+ setTimeout(()=>btn.textContent=old,1600);
+}
+let downloads=null;
+/* Claude の Artifact 内では downloads capability、GitHub Pages などふつうのブラウザでは直接保存 */
+const standalone=!(window.claude&&window.claude.use);
+async function saveScroll(){
+ const m=macroText();if(!m)return;
+ if(standalone){
+  const name=os==="ps"?"equip-macro.ps1":"equip-macro.sh";
+  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([os==="ps"?"\ufeff"+m:m],{type:"text/plain"}));
+  a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000);
+  say(os==="ps"?`巻物「${name}」を わたした。PowerShell で .\\${name} と唱えよ。`:`巻物「${name}」を わたした。bash ${name} と唱えよ。`);return}
+ if(!downloads)return;
+ const name=os==="ps"?"equip-macro.ps1.txt":"equip-macro.sh.txt";
+ try{await downloads.save({filename:name,data:m});say(`巻物「${name}」を わたした。末尾の .txt を外せば そのまま唱えられる。`)}
+ catch(err){if(err&&err.code==="declined")say("巻物は いらないか。コピーでも 唱えられるぞ。");
+  else if(err&&err.code==="rate_limited")say("少し 待ってから もう一度。");
+  else{document.getElementById("save").hidden=true;say("ここでは 巻物を わたせない。コピーで 唱えてくれ。")}}
+}
+if(standalone){const b=document.getElementById("save");b.hidden=false;b.textContent="巻物（.ps1 / .sh）で保存"}
+else (async()=>{try{downloads=await window.claude.use("downloads")}catch(e){downloads=null}
+ if(downloads)document.getElementById("save").hidden=false})();
+
+/* ---------- 星空 ---------- */
+(function(){const cv=document.getElementById("stars");const x=cv.getContext("2d");let pts=[];
+ function size(){cv.width=innerWidth;cv.height=innerHeight;pts=Array.from({length:Math.round(innerWidth*innerHeight/9000)},()=>({x:Math.random()*cv.width,y:Math.random()*cv.height,p:Math.random()*6.28,s:Math.random()<.15?2:1}))}
+ function draw(t){x.clearRect(0,0,cv.width,cv.height);pts.forEach(s=>{const a=.35+.65*Math.abs(Math.sin(s.p+t/1400));x.fillStyle=`rgba(236,232,255,${a.toFixed(2)})`;x.fillRect(s.x|0,s.y|0,s.s,s.s)});
+  if(!matchMedia("(prefers-reduced-motion: reduce)").matches)requestAnimationFrame(draw)}
+ size();addEventListener("resize",size);requestAnimationFrame(draw)})();
+
+/* ---------- 起動 ---------- */
+const savedDir=store.get("dir",null);if(savedDir)document.getElementById("dir").value=savedDir;
+drawSprite(document.getElementById("keeper"),KEEPER,{k:"#0b0a20",c:"#7a3fb0",w:"#ffd9b8",b:"#c0c0d8",a:"#5a4fa0",d:"#f4c45a"});
+renderAll();
+say(equipped.size?`おかえり、${job()}。今日は 何を そうびする？`:"いらっしゃい。ここは devtools 武具屋。気になる道具を 選んで「そうびする」と いい。");
+</script>
+</body>
+</html>
