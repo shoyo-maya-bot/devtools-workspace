@@ -151,3 +151,8 @@ checkout は `persist-credentials: false` にして、認証情報をランナ�
 - [x] LICENSE: 全リポ MIT（著作権表示はアカウント名）
 - [ ] 社内の AI 利用規程・Copilot の契約で、業務文書を扱ってよい範囲を確認（[docs/AI_USAGE.md](docs/AI_USAGE.md)）
 - [ ] LLM API・Backlog・Slack・AWS を使う場合は、それぞれの利用ルールと費用の承認を確認
+
+## セキュリティ・ライセンス
+
+- 脆弱性を見つけたら、公開の Issue ではなく [SECURITY.md](SECURITY.md) の方法で知らせてください
+- ライセンスは [MIT](LICENSE) です
