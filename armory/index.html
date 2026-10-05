@@ -359,7 +359,15 @@ const ITEMS = [
   ["方針と実験計画","docs/DESIGN.md を読む"],
   ["MCP の設定例（VS Code・Claude Code）","examples/"],
   ["Copilot で PR を自動レビュー（ふだんは Sonnet）","/review-auto"],
-  ["危ない PR を Opus で深く","/review-deep"]]}}
+  ["危ない PR を Opus で深く","/review-deep"]]}},
+{id:"review-platform",name:"雲上の審判所",slot:"tome",icon:"book",color:"#7aa8ff",r:4,st:[5,7,8,3],
+ flavor:"同じ掟で、地上（ローカル）でも東西の雲（AWS・Azure）でも裁きを下す審判所。",
+ lore:"設計書とコードの差分を AI でレビューする基盤。API と MCP で受け付け、ローカル・AWS・Azure で同じコードが動く（Terraform 付き）。",
+ skill:{p:"クラウドへの apply は費用がかかるので、必ず人が実行する。まずはローカルで。",steps:[
+  ["トークンを作る","review-platform token"],
+  ["ローカルで起動","docker compose --profile local up -d --build"],
+  ["設計書を送って結果を待つ","review-platform submit samples/member-api-design.xlsx --token <トークン> --wait"],
+  ["VS Code から MCP で使う","README の .vscode/mcp.json"]]}}
 ];
 
 const STATK = ["ATK","DEF","INT","SPD"];

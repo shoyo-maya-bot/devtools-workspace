@@ -16,7 +16,8 @@
     { "name": "slack-agenda-bot", "path": "../slack-agenda-bot" },
     { "name": "slide-tool", "path": "../slide-tool" },
     { "name": "learning-materials", "path": "../learning-materials" },
-    { "name": "agent-lab", "path": "../agent-lab" }
+    { "name": "agent-lab", "path": "../agent-lab" },
+    { "name": "review-platform", "path": "../review-platform" }
   ],
   "settings": {
     "files.eol": "\n",

@@ -1,7 +1,8 @@
 # マルチレポのマニフェスト（リポジトリ一覧の正の情報源）
 # 新しいリポジトリを作ったら、ここに 1 件追加する（bootstrap・VS Code ワークスペース・README の一覧がこれを使う。armory/index.html の ITEMS にも足す）
 #   role: workspace（このリポ）/ library（共有ライブラリ）/ tool（Python の CLI）/ app（常駐するアプリ）/
-#         environment（開発環境・サンプルアプリ）/ guide（ガイドライン・テンプレート）/ docs（教材・資料）/ slides（スライド）
+#         environment（開発環境・サンプルアプリ）/ guide（ガイドライン・テンプレート）/ docs（教材・資料）/ slides（スライド）/
+#         lab（実験）/ platform（クラウドに置く基盤）/ org-standard（アカウント共通の既定ファイル）
 #   python: true のものは `bootstrap.py install` で共有の仮想環境に入る
 org: shoyo-maya-bot
 host: https://github.com
@@ -80,3 +81,7 @@ repos:
   - name: agent-lab
     role: lab
     description: AI エージェントの実験（MCP・自律度・マルチモデルの相互レビュー）。設計の段階
+
+  - name: review-platform
+    role: platform
+    description: 設計書とコードの差分を AI でレビューする基盤（API と MCP、ローカル・AWS・Azure で同じコード、Terraform 付き）。AWS・Azure・MCP の学習の題材
