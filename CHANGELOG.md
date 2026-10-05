@@ -3,6 +3,14 @@
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/)、版は [SemVer](https://semver.org/lang/ja/) に従います。
 
 
+## 2026-10-05 Windows の CI
+
+- CI に `windows` ジョブを追加: Windows のランナーで install-prereqs.cmd（`-Check`・`-DryRun`）と setup.cmd を実際に動かし、単体テスト・PSScriptAnalyzer・CRLF の確認もする
+- setup.cmd / install-prereqs.cmd: 環境変数 `CI` か `DEVTOOLS_NO_PAUSE` があれば最後の `pause` をしない。PowerShell の終了コードを返す
+- install-prereqs: `-DryRun`（何を入れるかを表示するだけ）を追加
+- setup / bootstrap.py: `-Only`（`--only`）で一部のリポジトリだけ扱えるようにした。doc-to-markdown を取得していないときは `doc2md --check-env` を飛ばす
+- ワークフローの Actions をコミット SHA で固定し、ジョブに timeout-minutes を付けた
+
 ## 2026-10-04 Windows 11 の実機で環境構築を通しで試した結果の修正
 
 - install-prereqs: Java は「java コマンドがあるか」ではなく 17 以上かで判定する（Java 8 だけの PC で Corretto 17 を飛ばしていた）

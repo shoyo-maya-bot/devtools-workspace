@@ -46,6 +46,7 @@ MCP などの追加設定は不要です。**使うリポジトリを 1 つ clon
 
 0. まだツールが入っていなければ、Windows では `install-prereqs.cmd` をダブルクリック（Git・Python 3.12・Corretto 17・Node.js・VS Code・Rancher Desktop を winget で入れる。入っているものは飛ばす）
    - `install-prereqs.cmd -Check` で入っているかだけを調べられる（Java は 17 以上か、WSL2 は実際に動くかまで見る）
+   - `install-prereqs.cmd -DryRun` で、何を入れるかを表示するだけにできる（確認を出さず、何も変えない）
    - 別の版の Java（8 など）が入っていても消さずに 17 を追加する。WSL2 を有効にしたときは再起動が要る
    - Rancher Desktop 1.23.1 / 1.24.0 の不具合（docker が `timed out dialing Hyper-V socket` になる）の回避策も置く（[rancher-desktop#10780](https://github.com/rancher-sandbox/rancher-desktop/issues/10780)）
 1. 使いたいリポジトリを clone する（Python のツールは `devtools-common` も同じフォルダに clone しておくと、GitHub の認証なしでセットアップできます）
@@ -81,6 +82,7 @@ setup.cmd                     # Windows
 
 全リポジトリを兄弟フォルダに clone し（取得済みのものは `git pull --ff-only` で最新にする）、Python のツールを共有の仮想環境（1 つ上の `.venv`）にまとめて入れます。
 最新にしたいときも、もう一度 `setup.cmd` を実行すれば足ります。
+一部だけ取りたいときは `setup.cmd -Only devtools-common,doc-to-markdown`（macOS・Linux は `./setup.sh --only …`）のようにカンマ区切りで名前を渡します。
 VS Code で `devtools.code-workspace` を開くと全リポジトリを 1 画面で扱えます。
 
 ### 選んで取ってくる（devtools 武具屋）
@@ -118,6 +120,23 @@ code devtools.code-workspace                         # VS Code で全リポを 1
 
 `install` は各ツールの `devtools-common @ git+…@<SHA>` 依存を **ローカルの devtools-common で置き換えて** 入れます。
 共有ライブラリとツールを同時に変更して試せます。新しいツールの追加手順は [docs/NEW_TOOL.md](docs/NEW_TOOL.md) を参照してください。
+
+## CI（Windows でも入口を動かして確かめる）
+
+利用者の多くは Windows なので、`.github/workflows/ci.yml` の `windows` ジョブで、GitHub Actions の Windows ランナー（windows-latest、無料枠）を使って入口を実際に動かしています。
+
+| 確かめること | どうやって |
+|---|---|
+| `.cmd`・`.bat`・`.ps1` が CRLF のまま取り出されるか | `git ls-files --eol` と単体テスト（`tests/test_entrypoints.py`。`.cmd` が BOM なしの cp932、`.ps1` が BOM 付きかも見る） |
+| 単体テストが Windows でも通るか | `python -m unittest discover -s tests` |
+| PowerShell のスクリプトに誤りがないか | PSScriptAnalyzer（Error と Warning。色付き表示に使っている `Write-Host` の警告だけは対象外） |
+| `install-prereqs.cmd` が動くか | `-Check`（足りないものがあれば終了コード 1 になるのは正常。2 以上なら失敗）と `-DryRun` |
+| `setup.cmd` で取得・インストールできるか | `setup.cmd -Only devtools-common,doc-to-markdown` を 2 回（2 回目は取得済みのものを最新にする流れ）。そのあと `doc2md --help`・`figspec --help` と `import devtools_common` |
+
+`setup.cmd`・`install-prereqs.cmd` は、環境変数 `CI`（GitHub Actions では自動で入る）か `DEVTOOLS_NO_PAUSE` があれば最後の `pause` をせず、PowerShell の終了コードをそのまま返します。ダブルクリックしたときの動きは変わりません。
+CI で使う Actions はコミット SHA で固定しています（横にバージョンをコメントで書いています）。
+
+確かめていないこと: winget で実際にインストールすること（ランナーにはすでに入っているものが多く、Rancher Desktop・WSL2 は再起動や仮想化が要るため）、日本語版 Windows（cp932）の画面での表示、全リポジトリの取得。
 
 ## 初期設定チェックリスト（組織に導入するとき）
 

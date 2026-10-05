@@ -20,6 +20,7 @@
     python scripts/bootstrap.py clone --org my-org
     python scripts/bootstrap.py install            # ../.venv を作成して全ツールを editable インストール
     python scripts/bootstrap.py status
+    python scripts/bootstrap.py --only devtools-common,doc-to-markdown clone   # 一部のリポジトリだけ扱う
 """
 
 from __future__ import annotations
@@ -171,6 +172,19 @@ def cmd_install(root: Path, repos: list[Repo], venv_dir: Path | None, dry_run: b
     return 0
 
 
+def select_repos(repos: list[Repo], only: str | None) -> list[Repo]:
+    """--only（カンマ区切りのリポジトリ名）で絞り込む。マニフェストにない名前は誤りとして止める."""
+    if not only:
+        return repos
+    names = [n.strip() for n in only.split(",") if n.strip()]
+    known = {r.name for r in repos}
+    unknown = [n for n in names if n not in known]
+    if unknown:
+        print(f"repos.yaml にないリポジトリです: {', '.join(unknown)}", file=sys.stderr)
+        raise SystemExit(2)
+    return [r for r in repos if r.name in names]
+
+
 def cmd_list(repos: list[Repo]) -> int:
     print("| リポジトリ | 役割 | CLI | 説明 |")
     print("|---|---|---|---|")
@@ -188,6 +202,7 @@ def main(argv: list[str] | None = None) -> int:
         help="リポジトリを並べる親フォルダ（既定: このリポの親）",
     )
     ap.add_argument("--manifest", type=Path, default=MANIFEST)
+    ap.add_argument("--only", help="扱うリポジトリをカンマ区切りで指定（既定: repos.yaml の全部）")
     sub = ap.add_subparsers(dest="cmd", required=True)
     c = sub.add_parser("clone")
     c.add_argument("--org")
@@ -201,6 +216,7 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
 
     top, repos = load_manifest(args.manifest)
+    repos = select_repos(repos, args.only)
     root = args.root.resolve()
     if args.cmd == "clone":
         return cmd_clone(root, top, repos, args.org)
