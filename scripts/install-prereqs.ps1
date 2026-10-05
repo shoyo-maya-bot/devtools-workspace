@@ -3,8 +3,9 @@
 #   powershell -ExecutionPolicy Bypass -File scripts\install-prereqs.ps1          入れるものを表示して確認してから入れる
 #   powershell -ExecutionPolicy Bypass -File scripts\install-prereqs.ps1 -Yes     確認なしで入れる
 #   powershell -ExecutionPolicy Bypass -File scripts\install-prereqs.ps1 -Check   入っているかを調べるだけ（終了コード 0 = 全部ある / 1 = 足りない）
+#   powershell -ExecutionPolicy Bypass -File scripts\install-prereqs.ps1 -DryRun  何を入れるかを表示するだけ（確認なし・何も変えない。CI でも使う）
 # 入っているものは飛ばす（何度実行してもよい）。WSL2 の有効化だけは管理者の権限と再起動が要る
-param([switch]$Yes, [switch]$Check)
+param([switch]$Yes, [switch]$Check, [switch]$DryRun)
 $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $env:WSL_UTF8 = "1"   # wsl.exe の出力を UTF-8 にする（既定は UTF-16 で文字化けする）
@@ -91,7 +92,8 @@ $failed = @()
 if ($missing.Count -eq 0 -and $wsl.Ok) {
     Write-Host "すべて入っています。" -ForegroundColor Green
 } else {
-    if (-not $Yes) {
+    if ($DryRun) { Write-Host "[dry-run] 確認なしで進めます（実際には入れません）" }
+    elseif (-not $Yes) {
         $ans = Read-Host "足りないものを入れますか？ (y/N)"
         if ($ans -notmatch '^[yY]') { Write-Host "やめました。"; exit 0 }
     }
@@ -99,6 +101,7 @@ if ($missing.Count -eq 0 -and $wsl.Ok) {
         Write-Host "=== $($t.Name) を入れます ==="
         $wingetArgs = @("install", "--id", $t.Id, "--exact", "--silent", "--accept-package-agreements", "--accept-source-agreements")
         if ($t.Scope) { $wingetArgs += @("--scope", $t.Scope) }
+        if ($DryRun) { Write-Host ("[dry-run] winget " + ($wingetArgs -join " ")); continue }
         & winget @wingetArgs
         if ($LASTEXITCODE -ne 0) {
             Write-Host ("{0} のインストールに失敗しました（終了コード 0x{1:X8}）。" -f $t.Name, $LASTEXITCODE) -ForegroundColor Yellow
@@ -106,7 +109,9 @@ if ($missing.Count -eq 0 -and $wsl.Ok) {
         }
     }
     if (-not $wsl.Ok) {
-        if ($wsl.Note -match "再起動待ち") {
+        if ($DryRun) {
+            Write-Host "[dry-run] WSL2: $($wsl.Note)。実際には wsl --install --no-distribution を管理者で実行します"
+        } elseif ($wsl.Note -match "再起動待ち") {
             Write-Host "WSL2 は入っていますが、まだ使えません。PC を再起動してください。再起動しても直らないときは、BIOS（UEFI）で仮想化（Intel VT-x / AMD-V）を有効にしてください。" -ForegroundColor Yellow
         } else {
             Write-Host "=== WSL2 を有効にします（管理者の確認が出ます。終わったら再起動してください） ==="
@@ -124,7 +129,8 @@ $env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [En
 if (Get-Command rdctl -ErrorAction SilentlyContinue) {
     $prov = Join-Path $env:LOCALAPPDATA "rancher-desktop\provisioning"
     $fix = Join-Path $prov "fix-docker-healthcheck.start"
-    if (-not (Test-Path $fix)) {
+    if ($DryRun) { if (-not (Test-Path $fix)) { Write-Host "[dry-run] Rancher Desktop の不具合の回避策を置きます: $fix" } }
+    elseif (-not (Test-Path $fix)) {
         New-Item -ItemType Directory -Force -Path $prov | Out-Null
         [IO.File]::WriteAllText($fix, "#!/bin/sh`nsed -i 's|http://\./_ping|http://localhost/_ping|g' /etc/init.d/docker`n")
         Write-Host "[追加] Rancher Desktop の不具合の回避策: $fix"
@@ -136,6 +142,7 @@ if (Get-Command code -ErrorAction SilentlyContinue) {
     $have = (Invoke-Native "code --list-extensions").Out
     foreach ($e in $extensions) {
         if ($have -match [regex]::Escape($e)) { Write-Host "[OK  ] $e"; continue }
+        if ($DryRun) { Write-Host "[dry-run] code --install-extension $e"; continue }
         $r = Invoke-Native "code --install-extension $e --force"
         $after = (Invoke-Native "code --list-extensions").Out
         if ($after -match [regex]::Escape($e)) { Write-Host "[追加] $e" }

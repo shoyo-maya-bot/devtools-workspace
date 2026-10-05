@@ -11,12 +11,74 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
       - run: pip install "ruff>=0.6"
       - run: ruff check scripts tests && ruff format --check scripts tests
       - name: Manifest / bootstrap tests
         run: python -m unittest discover -s tests -v
+
+  # 利用者は Windows。入口（install-prereqs.cmd / setup.cmd）が実際に動くことを Windows のランナーで確かめる
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    # setup.cmd / install-prereqs.cmd は環境変数 CI が定義されていれば最後の pause をしない（GitHub Actions は自動で CI=true）
+    env:
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: .cmd / .bat / .ps1 are CRLF in the Windows checkout
+        run: |
+          git ls-files --eol -- '*.cmd' '*.bat' '*.ps1'
+          $bad = git ls-files --eol -- '*.cmd' '*.bat' '*.ps1' | Where-Object { $_ -notmatch 'w/crlf' }
+          if ($bad) { $bad | ForEach-Object { Write-Output "::error::CRLF ではありません: $_" }; exit 1 }
+
+      - name: Unit tests (Windows)
+        run: python -m unittest discover -s tests -v
+
+      - name: PSScriptAnalyzer
+        run: |
+          Install-Module PSScriptAnalyzer -RequiredVersion 1.24.0 -Scope CurrentUser -Force
+          # Write-Host は利用者向けの色付き表示のために使っているので対象外にする
+          $r = Invoke-ScriptAnalyzer -Path . -Recurse -Severity Error, Warning -ExcludeRule PSAvoidUsingWriteHost
+          $r | Format-Table -AutoSize RuleName, Severity, ScriptName, Line, Message | Out-String -Width 300
+          foreach ($x in $r) { Write-Output "::error file=$($x.ScriptPath),line=$($x.Line)::$($x.RuleName): $($x.Message)" }
+          if ($r) { exit 1 }
+
+      - name: install-prereqs.cmd -Check (reports only; 0 = all present, 1 = missing)
+        shell: cmd
+        run: |
+          call install-prereqs.cmd -Check
+          if errorlevel 2 exit /b 1
+          exit /b 0
+
+      - name: install-prereqs.cmd -DryRun (no changes)
+        shell: cmd
+        run: call install-prereqs.cmd -DryRun
+
+      - name: setup.cmd -Only devtools-common,doc-to-markdown
+        shell: cmd
+        run: call setup.cmd -Only devtools-common,doc-to-markdown
+
+      - name: setup.cmd again (already cloned → pull, idempotent)
+        shell: cmd
+        run: call setup.cmd -Only devtools-common,doc-to-markdown
+
+      - name: Smoke test the installed tools
+        run: |
+          $venv = Join-Path (Split-Path $PWD -Parent) ".venv\Scripts"
+          & "$venv\doc2md.exe" --help; if ($LASTEXITCODE) { exit 1 }
+          & "$venv\figspec.exe" --help; if ($LASTEXITCODE) { exit 1 }
+          & "$venv\python.exe" -c "import devtools_common; print('devtools_common', devtools_common.__file__)"; if ($LASTEXITCODE) { exit 1 }
+          python scripts\bootstrap.py --only devtools-common,doc-to-markdown status

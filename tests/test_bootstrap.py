@@ -125,3 +125,26 @@ class PullTest(unittest.TestCase):
         self.assertEqual((tmp / "ws" / "b" / "f.txt").read_text(encoding="utf-8"), "local\n")
         self.assertIn("pull   b: 最新にできませんでした", out.getvalue())
         self.assertNotIn("missing", out.getvalue())
+
+
+class SelectReposTest(unittest.TestCase):
+    """--only で一部のリポジトリだけを扱う（CI や、必要なものだけ取りたいとき）."""
+
+    def test_only_filters_in_manifest_order(self):
+        repos = [bootstrap.Repo("a"), bootstrap.Repo("b"), bootstrap.Repo("c")]
+        self.assertEqual([r.name for r in bootstrap.select_repos(repos, "c, a")], ["a", "c"])
+        self.assertEqual(bootstrap.select_repos(repos, None), repos)
+
+    def test_unknown_name_is_usage_error(self):
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err), self.assertRaises(SystemExit) as cm:
+            bootstrap.main(["--only", "devtools-common,no-such-repo", "list"])
+        self.assertEqual(cm.exception.code, 2)
+        self.assertIn("no-such-repo", err.getvalue())
+
+    def test_only_list(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(bootstrap.main(["--only", "doc-to-markdown", "list"]), 0)
+        self.assertIn("doc-to-markdown", out.getvalue())
+        self.assertNotIn("office-review", out.getvalue())
