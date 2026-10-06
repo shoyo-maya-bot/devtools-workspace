@@ -99,7 +99,8 @@ class InstallPlanTest(unittest.TestCase):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             self.assertEqual(bootstrap.main(["--root", str(self.tmp), "install", "--no-venv", "--dry-run"]), 0)
-        self.assertIn(f"install -e {self.tmp / 'doc-to-markdown'}", out.getvalue())
+        # main は --root を resolve する（Windows の一時フォルダは短い名前のことがある）
+        self.assertIn(f"install -e {self.tmp.resolve() / 'doc-to-markdown'}", out.getvalue())
         self.assertNotIn("--no-deps", out.getvalue())
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
