@@ -88,9 +88,9 @@ devtools-template（[NEW_TOOL.md](NEW_TOOL.md) の手順に置き換え）、ai-
 
 ## ローカル開発
 
-親フォルダに兄弟として clone し（`scripts/bootstrap.py clone`）、1 つの仮想環境に editable で入れます
-（`scripts/bootstrap.py install`）。このとき各ツールの Git タグ依存 `devtools-common @ git+…` は
-ローカルの `devtools-common` で置き換わるため、共有ライブラリとツールを同時に変更して試せます。
+親フォルダに兄弟として clone し（`scripts/bootstrap.py clone`）、1 つの仮想環境に入れます
+（`scripts/bootstrap.py install`）。既定では各ツールが固定した `devtools-common @ git+…@<SHA>` をそのまま使います。
+`install --dev` にすると、その依存がローカルの `devtools-common`（editable）で置き換わるため、共有ライブラリとツールを同時に変更して試せます。
 
 ## 版の固定はタグではなくコミット SHA
 

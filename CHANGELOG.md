@@ -3,6 +3,14 @@
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/)、版は [SemVer](https://semver.org/lang/ja/) に従います。
 
 
+## 2026-10-06 install が各ツールの固定した devtools-common を使う
+
+- bootstrap.py install: 既定では各ツールを通常の依存解決で入れ、ツールが `devtools-common @ git+…@<SHA>` で固定した版を使う
+  （これまでは固定を外し、手元の devtools-common の checkout を、どのコミットでも editable で入れていた）
+- bootstrap.py install `--dev`（setup.cmd `-Dev`・setup.sh `--dev`）: これまでの動き（ローカルの devtools-common で置き換える）は開発者向けに残した
+- bootstrap.py clone / pull: repos.yaml の項目に `ref:`（ブランチ・タグ・コミット SHA）を書けば、その ref を取り出す（書かなければ既定ブランチ）
+- 単体テスト: 既定のモードで固定した依存を置き換えないこと、`--dev` で置き換えること、`ref:` を取り出すことを確かめる
+
 ## 2026-10-05 Windows の CI
 
 - CI に `windows` ジョブを追加: Windows のランナーで install-prereqs.cmd（`-Check`・`-DryRun`）と setup.cmd を実際に動かし、単体テスト・PSScriptAnalyzer・CRLF の確認もする

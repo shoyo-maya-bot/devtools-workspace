@@ -114,13 +114,22 @@ Python の CLI は `-f json` の機械可読レポート（[仕様](https://gith
 
 ```bash
 python scripts/bootstrap.py clone                    # 兄弟フォルダに全リポを clone
-python scripts/bootstrap.py install                  # ../.venv に Python のツールを editable で一括インストール
+python scripts/bootstrap.py install                  # ../.venv に Python のツールを一括インストール（devtools-common は各ツールの固定 SHA）
+python scripts/bootstrap.py install --dev            # 開発者向け: devtools-common をローカルの checkout で置き換えて入れる
 python scripts/bootstrap.py status                   # 各リポのブランチ・未コミット・最新タグ
 code devtools.code-workspace                         # VS Code で全リポを 1 ウィンドウに
 ```
 
-`install` は各ツールの `devtools-common @ git+…@<SHA>` 依存を **ローカルの devtools-common で置き換えて** 入れます。
-共有ライブラリとツールを同時に変更して試せます。新しいツールの追加手順は [docs/NEW_TOOL.md](docs/NEW_TOOL.md) を参照してください。
+`install`（`setup.cmd`・`setup.sh` も同じ）は、各ツールが `devtools-common @ git+…@<SHA>` で固定した版を pip にそのまま解決させます。
+手元の devtools-common の checkout がどのコミットでも、ツールはテスト済みの版の共有ライブラリで動きます。
+ツールどうしで固定した SHA が食い違うと pip が衝突として止めるので、そのときは各ツールの固定をそろえてください。
+
+`install --dev`（`setup.cmd -Dev`・`setup.sh --dev`）は開発者向けです。固定を外し、**ローカルの devtools-common を editable で** 入れます
+（ツールは `--no-deps` で入れ、ほかの依存と dev 用の依存は別に入れる）。共有ライブラリとツールを同時に変更して試せます。
+あとで既定の `install` をやり直せば、固定した版に戻ります。
+
+`clone` / `pull` は既定ブランチを取り出します。repos.yaml の項目に `ref:`（ブランチ・タグ・コミット SHA）を書くと、そのリポジトリはその ref を取り出します。
+新しいツールの追加手順は [docs/NEW_TOOL.md](docs/NEW_TOOL.md) を参照してください。
 
 ## CI（Windows でも入口を動かして確かめる）
 

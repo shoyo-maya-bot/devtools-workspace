@@ -63,17 +63,48 @@ class InstallPlanTest(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.tmp)
 
-    def test_local_common_replaces_git_dependency(self):
-        repos = [
+    def _repos(self):
+        return [
             bootstrap.Repo("devtools-common", python=True),
             bootstrap.Repo("tool-a", python=True),
             bootstrap.Repo("not-cloned", python=True),
         ]
-        plan = bootstrap.install_plan(self.tmp, repos)
+
+    def test_default_keeps_pinned_common(self):
+        """既定は各ツールの固定依存をそのまま pip に解決させ、ローカルの devtools-common で置き換えない."""
+        plan = bootstrap.install_plan(self.tmp, self._repos())
+        self.assertEqual(plan, [["install", "-e", str(self.tmp / "tool-a")]])
+        flat = [a for p in plan for a in p]
+        self.assertNotIn("--no-deps", flat)  # 依存（固定した devtools-common を含む）を解決する
+        self.assertFalse(any(str(self.tmp / "devtools-common") in a for a in flat))  # ローカル版は入れない
+
+    def test_default_without_tools_installs_common_alone(self):
+        plan = bootstrap.install_plan(self.tmp, [bootstrap.Repo("devtools-common", python=True)])
+        self.assertEqual(plan, [["install", "-e", str(self.tmp / "devtools-common")]])
+
+    def test_dev_local_common_replaces_git_dependency(self):
+        plan = bootstrap.install_plan(self.tmp, self._repos(), dev=True)
         self.assertEqual(plan[0], ["install", "-e", f"{self.tmp / 'devtools-common'}[dev]"])
         self.assertEqual(plan[1], ["install", "openpyxl>=3", "pytest>=8"])
         self.assertEqual(plan[2], ["install", "--no-deps", "-e", str(self.tmp / "tool-a")])
         self.assertFalse(any("git+" in " ".join(p) for p in plan))
+
+    def test_is_common(self):
+        self.assertTrue(bootstrap._is_common("devtools-common @ git+https://x@abc"))
+        self.assertTrue(bootstrap._is_common("devtools_common>=0.1"))
+        self.assertFalse(bootstrap._is_common("devtools-common-extra>=1"))
+
+    def test_dry_run_modes(self):
+        shutil.copytree(self.tmp / "tool-a", self.tmp / "doc-to-markdown")  # repos.yaml にあるツール名で置く
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(bootstrap.main(["--root", str(self.tmp), "install", "--no-venv", "--dry-run"]), 0)
+        self.assertIn(f"install -e {self.tmp / 'doc-to-markdown'}", out.getvalue())
+        self.assertNotIn("--no-deps", out.getvalue())
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(bootstrap.main(["--root", str(self.tmp), "install", "--no-venv", "--dry-run", "--dev"]), 0)
+        self.assertIn("--no-deps", out.getvalue())
 
     def test_list_and_dry_run(self):
         out = io.StringIO()
@@ -125,6 +156,41 @@ class PullTest(unittest.TestCase):
         self.assertEqual((tmp / "ws" / "b" / "f.txt").read_text(encoding="utf-8"), "local\n")
         self.assertIn("pull   b: 最新にできませんでした", out.getvalue())
         self.assertNotIn("missing", out.getvalue())
+
+
+class RefTest(unittest.TestCase):
+    """repos.yaml の ref（ブランチ・タグ・SHA）を clone / pull で取り出す."""
+
+    def _git(self, *args, cwd):
+        import subprocess
+
+        return subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True).stdout.strip()
+
+    def test_manifest_ref_and_pull_to_ref(self):
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        manifest = tmp / "repos.yaml"
+        manifest.write_text("org: o\nrepos:\n  - name: a\n    ref: v1\n", encoding="utf-8")
+        self.assertEqual(bootstrap.load_manifest(manifest)[1][0].ref, "v1")
+
+        ident = ["-c", "user.name=t", "-c", "user.email=t@example.com"]
+        src = tmp / "src"
+        src.mkdir()
+        self._git("init", "-q", "-b", "main", cwd=src)
+        (src / "f.txt").write_text("1\n", encoding="utf-8")
+        self._git("add", ".", cwd=src)
+        self._git(*ident, "commit", "-q", "-m", "1", cwd=src)
+        self._git("tag", "v1", cwd=src)
+        self._git("clone", "-q", str(src), str(tmp / "ws" / "a"), cwd=tmp)
+        (src / "f.txt").write_text("2\n", encoding="utf-8")
+        self._git(*ident, "commit", "-q", "-am", "2", cwd=src)
+        self._git("tag", "v2", cwd=src)
+
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(bootstrap.cmd_pull(tmp / "ws", [bootstrap.Repo(name="a", ref="v2")]), 0)
+        self.assertEqual((tmp / "ws" / "a" / "f.txt").read_text(encoding="utf-8"), "2\n")
+        self.assertIn("pull   a: v2", out.getvalue())
 
 
 class SelectReposTest(unittest.TestCase):

@@ -4,6 +4,7 @@
 #         environment（開発環境・サンプルアプリ）/ guide（ガイドライン・テンプレート）/ docs（教材・資料）/ slides（スライド）/
 #         lab（実験）/ platform（クラウドに置く基盤）/ org-standard（アカウント共通の既定ファイル）
 #   python: true のものは `bootstrap.py install` で共有の仮想環境に入る
+#   ref: 任意。clone / pull で取り出すブランチ・タグ・コミット SHA（書かなければ既定ブランチ）
 org: shoyo-maya-bot
 host: https://github.com
 

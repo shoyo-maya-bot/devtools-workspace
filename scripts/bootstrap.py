@@ -13,12 +13,14 @@
     clone     マニフェスト（repos.yaml）のリポジトリのうち、未取得のものを clone
     pull      取得済みのリポジトリを git pull --ff-only
     status    各リポジトリのブランチ・未コミット変更・最新タグ
-    install   仮想環境を作り、Python リポジトリを editable で入れる（devtools-common はローカル版を使う）
+    install   仮想環境を作り、Python のツールを入れる（各ツールが固定した devtools-common を使う）
+              --dev を付けると、devtools-common もローカルの checkout を editable で入れる（開発者向け）
     list      ツール一覧（Markdown の表）
 
 例:
     python scripts/bootstrap.py clone --org my-org
-    python scripts/bootstrap.py install            # ../.venv を作成して全ツールを editable インストール
+    python scripts/bootstrap.py install            # ../.venv に全ツールを入れる（devtools-common は各ツールの固定 SHA）
+    python scripts/bootstrap.py install --dev      # 開発者向け: ローカルの devtools-common で置き換えて入れる
     python scripts/bootstrap.py status
     python scripts/bootstrap.py --only devtools-common,doc-to-markdown clone   # 一部のリポジトリだけ扱う
 """
@@ -49,6 +51,7 @@ class Repo:
     description: str = ""
     python: bool = False
     cli: str = ""
+    ref: str = ""  # clone / pull で取り出すブランチ・タグ・コミット SHA（空なら既定ブランチ）
 
 
 def _scalar(v: str) -> str | bool:
@@ -99,8 +102,10 @@ def cmd_clone(root: Path, top: dict[str, str], repos: list[Repo], org: str | Non
         if dest.exists():
             print(f"skip   {r.name}（取得済み）")
             continue
-        print(f"clone  {r.name}")
+        print(f"clone  {r.name}" + (f" @ {r.ref}" if r.ref else ""))
         git(["clone", f"{host}/{org}/{r.name}.git", str(dest)])
+        if r.ref:
+            git(["checkout", "-q", r.ref], cwd=dest)
     return 0
 
 
@@ -111,6 +116,14 @@ def cmd_pull(root: Path, repos: list[Repo]) -> int:
         d = root / r.name
         if not (d / ".git").exists():
             continue
+        if r.ref:
+            p = _update_to_ref(d, r.ref)
+            if p.returncode == 0:
+                print(f"pull   {r.name}: {r.ref}")
+                continue
+            failed += 1
+            print(f"pull   {r.name}: {r.ref} にできませんでした（手元の変更を確かめてください）: {p.stderr.strip()}")
+            continue
         p = subprocess.run(["git", "pull", "--ff-only"], cwd=d, capture_output=True, text=True, check=False)
         if p.returncode == 0:
             print(f"pull   {r.name}: {p.stdout.strip().splitlines()[-1] if p.stdout.strip() else 'ok'}")
@@ -118,6 +131,17 @@ def cmd_pull(root: Path, repos: list[Repo]) -> int:
             failed += 1
             print(f"pull   {r.name}: 最新にできませんでした（手元の変更を確かめてください）: {p.stderr.strip()}")
     return 1 if failed else 0
+
+
+def _update_to_ref(d: Path, ref: str) -> subprocess.CompletedProcess[str]:
+    """マニフェストで ref を指定したリポジトリを、その ref にそろえる（ブランチなら fast-forward まで）."""
+    for args in (["fetch", "-q", "--tags", "origin"], ["checkout", "-q", ref]):
+        p = subprocess.run(["git", *args], cwd=d, capture_output=True, text=True, check=False)
+        if p.returncode != 0:
+            return p
+    if git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=d, check=False) not in ("", "HEAD"):
+        p = subprocess.run(["git", "pull", "--ff-only"], cwd=d, capture_output=True, text=True, check=False)
+    return p
 
 
 def cmd_status(root: Path, repos: list[Repo]) -> int:
@@ -134,34 +158,57 @@ def cmd_status(root: Path, repos: list[Repo]) -> int:
     return 0
 
 
-def install_plan(root: Path, repos: list[Repo], extras: str = "dev") -> list[list[str]]:
-    """pip の引数リストを返す。ツールは --no-deps で入れ、Git タグ依存の devtools-common をローカル版で代替する."""
+def _is_common(dep: str) -> bool:
+    return re.split(r"[\s\[@<>=!~;]", dep.strip(), maxsplit=1)[0].replace("_", "-").lower() == COMMON
+
+
+def install_plan(root: Path, repos: list[Repo], dev: bool = False, extras: str = "dev") -> list[list[str]]:
+    """pip の引数リストを返す.
+
+    既定（利用者向け）: ツールを通常の依存解決で入れる。各ツールが `devtools-common @ git+…@<SHA>` で固定した版を
+    pip がそのまま入れるので、手元の devtools-common の checkout（どのコミットか分からない）は使わない。
+    ツールを 1 回の pip にまとめるのは、ツールごとに固定 SHA が食い違ったときに pip に衝突として止めてもらうため。
+
+    dev=True（開発者向け）: devtools-common をローカルの checkout から editable で入れ、ツールは --no-deps で入れて
+    Git の固定依存をローカル版で置き換える。共有ライブラリとツールを同時に変更して試すとき用。
+    """
     plan: list[list[str]] = []
     py = [r for r in repos if r.python and (root / r.name / "pyproject.toml").is_file()]
     common = next((r for r in py if r.name == COMMON), None)
+    tools = [r for r in py if r.name != COMMON]
+    if not dev:
+        if tools:
+            args = ["install"]
+            for r in tools:
+                args += ["-e", str(root / r.name)]
+            plan.append(args)
+        elif common:
+            # ツールを 1 つも選んでいないとき（--only devtools-common など）だけ、ライブラリ単体を入れる
+            plan.append(["install", "-e", str(root / common.name)])
+        return plan
     if common:
         plan.append(["install", "-e", f"{root / common.name}[{extras}]"])
     third_party: list[str] = []
-    for r in py:
-        if r.name == COMMON:
-            continue
+    for r in tools:
         project = tomllib.loads((root / r.name / "pyproject.toml").read_text(encoding="utf-8"))["project"]
         deps = project.get("dependencies", []) + project.get("optional-dependencies", {}).get(extras, [])
-        third_party += [d for d in deps if not d.replace("_", "-").startswith(COMMON)]
+        third_party += [d for d in deps if not _is_common(d)]
         plan.append(["install", "--no-deps", "-e", str(root / r.name)])
     if third_party:
         plan.insert(1 if common else 0, ["install", *sorted(set(third_party))])
     return plan
 
 
-def cmd_install(root: Path, repos: list[Repo], venv_dir: Path | None, dry_run: bool) -> int:
+def cmd_install(root: Path, repos: list[Repo], venv_dir: Path | None, dry_run: bool, dev: bool = False) -> int:
     python = sys.executable
     if venv_dir is not None:
         if not dry_run and not venv_dir.exists():
             print(f"venv   {venv_dir}")
             venv.EnvBuilder(with_pip=True).create(venv_dir)
         python = str(venv_dir / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python"))
-    for args in install_plan(root, repos):
+    if dev:
+        print("mode   開発者向け（--dev）: devtools-common はローカルの checkout を editable で使います")
+    for args in install_plan(root, repos, dev=dev):
         cmd = [python, "-m", "pip", *args]
         print("$", " ".join(cmd))
         if not dry_run:
@@ -220,6 +267,11 @@ def main(argv: list[str] | None = None) -> int:
     i.add_argument("--venv", type=Path, help="仮想環境の場所（既定: <root>/.venv）")
     i.add_argument("--no-venv", action="store_true", help="今の Python 環境に入れる")
     i.add_argument("--dry-run", action="store_true")
+    i.add_argument(
+        "--dev",
+        action="store_true",
+        help="開発者向け: 各ツールの devtools-common の固定を外し、ローカルの checkout を editable で入れる",
+    )
     sub.add_parser("list")
     args = ap.parse_args(argv)
 
@@ -234,7 +286,7 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_status(root, repos)
     if args.cmd == "install":
         venv_dir = None if args.no_venv else (args.venv or root / ".venv")
-        return cmd_install(root, repos, venv_dir, args.dry_run)
+        return cmd_install(root, repos, venv_dir, args.dry_run, dev=args.dev)
     return cmd_list(repos)
 
 
