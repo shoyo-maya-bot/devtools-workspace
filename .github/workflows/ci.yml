@@ -8,6 +8,13 @@ on:
 permissions:
   contents: read
 
+# 統合のジョブ（windows・setup-sh）が取り出す他のリポジトリは .github/ci-repos.yaml の ref（コミット SHA）に固定する。
+# 他のリポジトリの main が変わっても、このリポジトリの CI の結果は変わらない（上げるときは ci-repos.yaml を書き換える）
+env:
+  RUFF_VERSION: "0.15.11"
+  BANDIT_VERSION: "1.8.6"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -19,8 +26,11 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
-      - run: pip install "ruff>=0.6"
+      - run: pip install "ruff==${RUFF_VERSION}" "bandit==${BANDIT_VERSION}"
       - run: ruff check scripts tests && ruff format --check scripts tests
+      # SAST。このリポジトリは標準ライブラリだけで依存が無いため、pip-audit は流さない
+      - name: SAST (bandit)
+        run: bandit -q -r scripts -ll
       - name: Manifest / bootstrap tests
         run: python -m unittest discover -s tests -v
 
@@ -71,13 +81,13 @@ jobs:
         shell: cmd
         run: call install-prereqs.cmd -DryRun
 
-      - name: setup.cmd -Only devtools-common,doc-to-markdown
+      - name: setup.cmd -Only devtools-common,doc-to-markdown (versions pinned by .github/ci-repos.yaml)
         shell: cmd
-        run: call setup.cmd -Only devtools-common,doc-to-markdown
+        run: call setup.cmd -Manifest .github\ci-repos.yaml -Only devtools-common,doc-to-markdown
 
       - name: setup.cmd again (already cloned → pull, idempotent)
         shell: cmd
-        run: call setup.cmd -Only devtools-common,doc-to-markdown
+        run: call setup.cmd -Manifest .github\ci-repos.yaml -Only devtools-common,doc-to-markdown
 
       - name: Smoke test the installed tools
         # ランナーの既定の文字コード（cp1252）では日本語のヘルプを書けないため UTF-8 にする（日本語の Windows は cp932 で表示できる）
@@ -88,4 +98,41 @@ jobs:
           & "$venv\doc2md.exe" --help; if ($LASTEXITCODE) { exit 1 }
           & "$venv\figspec.exe" --help; if ($LASTEXITCODE) { exit 1 }
           & "$venv\python.exe" -c "import devtools_common; print('devtools_common', devtools_common.__file__)"; if ($LASTEXITCODE) { exit 1 }
-          python scripts\bootstrap.py --only devtools-common,doc-to-markdown status
+          python scripts\bootstrap.py --manifest .github\ci-repos.yaml --only devtools-common,doc-to-markdown status
+
+  # macOS・Linux の入口（setup.sh）が実際に動くことを確かめる。Python の版の確認（3.11 以上）もここを通る
+  setup-sh:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: setup.sh (versions pinned by .github/ci-repos.yaml)
+        run: ./setup.sh --manifest .github/ci-repos.yaml --only devtools-common,doc-to-markdown
+      - name: setup.sh again (already cloned → pull, idempotent)
+        run: ./setup.sh --manifest .github/ci-repos.yaml --only devtools-common,doc-to-markdown
+      - name: Smoke test the installed tools
+        run: |
+          venv="$(dirname "$PWD")/.venv/bin"
+          "$venv/doc2md" --help >/dev/null
+          "$venv/figspec" --help >/dev/null
+          "$venv/python" -c "import devtools_common; print('devtools_common', devtools_common.__file__)"
+          # 取り出した版が ci-repos.yaml の ref と同じか
+          python3 - <<'PY'
+          import subprocess, sys
+          sys.path.insert(0, "scripts")
+          import bootstrap
+          _, repos = bootstrap.load_manifest(bootstrap.Path(".github/ci-repos.yaml"))
+          for r in repos:
+              head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=f"../{r.name}", capture_output=True, text=True, check=True).stdout.strip()
+              print(r.name, head)
+              assert head == r.ref, f"{r.name}: {head} != {r.ref}"
+          PY

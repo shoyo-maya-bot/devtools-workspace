@@ -9,6 +9,7 @@ param([switch]$Yes, [switch]$Check, [switch]$DryRun)
 $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $env:WSL_UTF8 = "1"   # wsl.exe の出力を UTF-8 にする（既定は UTF-16 で文字化けする）
+$env:PYTHONUTF8 = "1" # Python の出力を UTF-8 にする
 
 # 外部コマンドを実行して、標準出力と標準エラーをまとめた文字列と終了コードを返す。
 # Windows PowerShell 5.1 は $ErrorActionPreference = "Stop" のとき、外部コマンドが標準エラーに書くだけで例外にするため、cmd.exe を通す
@@ -26,6 +27,23 @@ function Get-JavaMajor {
         return $major
     }
     return 0
+}
+
+# 必要な版（3.11 以上）の Python があるか。版の判定は scripts\python_version.py の 1 か所（setup.ps1・setup.sh・bootstrap.py と共通）
+# py ランチャーや python があるだけでは足りない（古い版だと setup.cmd が失敗する）
+function Get-PythonStatus {
+    $check = Join-Path $PSScriptRoot "python_version.py"
+    $seen = @()
+    foreach ($c in @("py", "python", "python3")) {
+        if (-not (Get-Command $c -ErrorAction SilentlyContinue)) { continue }
+        $a = ""; if ($c -eq "py") { $a = "-3" }
+        $r = Invoke-Native "$c $a `"$check`" --quiet"
+        if ($r.Code -eq 0) { return @{ Ok = $true; Note = "" } }
+        $v = Invoke-Native "$c $a -c `"import sys; print(sys.version.split()[0])`""
+        if ($v.Code -eq 0 -and $v.Out.Trim()) { $seen += $v.Out.Trim() }
+    }
+    if ($seen.Count) { return @{ Ok = $false; Note = "（今の Python は $($seen -join ', ')。3.11 以上が要るので 3.12 を追加で入れます）" } }
+    return @{ Ok = $false; Note = "" }
 }
 
 function Test-Wsl2 {
@@ -52,8 +70,8 @@ function Test-WingetInstalled([string]$id) {
 $tools = @(
     @{ Name = "Git";                Id = "Git.Git";                    Why = "リポジトリの取得";
        Test = { [bool](Get-Command git -ErrorAction SilentlyContinue) } },
-    @{ Name = "Python 3.12";        Id = "Python.Python.3.12";         Why = "devtools の CLI";
-       Test = { [bool](Get-Command py -ErrorAction SilentlyContinue) -or (Test-WingetInstalled "Python.Python.3.12") } },
+    @{ Name = "Python 3.12";        Id = "Python.Python.3.12";         Why = "devtools の CLI（3.11 以上）";
+       Test = { (Get-PythonStatus).Ok -or (Test-WingetInstalled "Python.Python.3.12") } },
     @{ Name = "Amazon Corretto 17"; Id = "Amazon.Corretto.17.JDK";     Why = "sample-app のビルド（Java 17 以上が要る）";
        Test = { (Get-JavaMajor) -ge 17 } },
     @{ Name = "Node.js LTS";        Id = "OpenJS.NodeJS.LTS";          Why = "slide-tool";
@@ -80,6 +98,7 @@ foreach ($t in $tools) {
         $major = Get-JavaMajor
         if ($major -gt 0) { $note = "（今の java は $major。17 を追加で入れます。$major は消しません）" }
     }
+    if ($t.Id -eq "Python.Python.3.12" -and -not $ok) { $note = (Get-PythonStatus).Note }
     Write-Host ("[{0}] {1,-20} {2}{3}" -f $(if ($ok) { "OK  " } else { "なし" }), $t.Name, $t.Why, $note)
     if (-not $ok) { $missing += $t }
 }

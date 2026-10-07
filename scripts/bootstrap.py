@@ -27,14 +27,20 @@
 
 from __future__ import annotations
 
-import argparse
-import re
-import subprocess
 import sys
-import tomllib
-import venv
-from dataclasses import dataclass
-from pathlib import Path
+
+# tomllib（3.11+）を import する前に版を確かめ、古い Python ではトレースバックではなく理由を出して終わる
+from python_version import require  # 同じ scripts フォルダ（必要な版の定義はここだけ）
+
+require()
+
+import argparse  # noqa: E402
+import re  # noqa: E402
+import subprocess  # noqa: E402
+import tomllib  # noqa: E402
+import venv  # noqa: E402
+from dataclasses import dataclass  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 HERE = Path(__file__).resolve().parent.parent
 MANIFEST = HERE / "repos.yaml"

@@ -3,6 +3,23 @@
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/)、版は [SemVer](https://semver.org/lang/ja/) に従います。
 
 
+## 2026-10-07 Python の版の確認を 1 か所に、CI の再現性とシークレットの渡し方
+
+- Python の版の確認を `scripts/python_version.py` の 1 か所にまとめた（3.11 以上）。install-prereqs.ps1・setup.ps1・setup.sh・bootstrap.py が使う
+  - install-prereqs: `py` があるだけで「Python OK」にしていた。3.11 以上の Python があるかで判定し、古い版なら今の版を表示して 3.12 を入れる
+  - setup.sh: 版を確かめずに python3 を呼んでいた。python3.13 → python3.12 → python3.11 → python3 → python の順に 3.11 以上を探し、無ければ理由を出して止まる
+  - bootstrap.py: tomllib を import する前に版を確かめ、古い Python ではトレースバックではなく理由を出して終了コード 1 で終わる
+- setup.sh `--manifest`・setup.cmd `-Manifest`: repos.yaml の代わりに使うマニフェストを渡せる
+- CI: 統合のジョブ（windows・新しい setup-sh）は `.github/ci-repos.yaml` の `ref:`（コミット SHA）で他のリポジトリを取り出す（以前は最新の main）。
+  setup-sh ジョブ（ubuntu・macOS）で setup.sh を実際に動かす。ruff・bandit・pip-audit・build の版を固定。ci.yml に bandit を追加
+- python-ci.yml（**呼び出し側の書き方が変わる**）: 使い方の例を `secrets: inherit` から `secrets: DEPS_TOKEN: ${{ secrets.DEPS_TOKEN }}` に変えた。
+  `DEPS_TOKEN` は依存を入れる手順の環境変数だけで使い、`git config --global` に書かない。bandit・pip-audit はトークンの無い手順で入れる。
+  入力 `run-windows`（既定 `true`）・`windows-python-version`（既定 3.12）を追加し、Windows でもテストを流す（呼び出し側が Windows で落ちるようになることがある）。
+  リポジトリに `constraints.txt` があれば `-c constraints.txt` を付ける
+- docs/ARCHITECTURE.md: 共通 CI を使っているのは devtools-common と doc-to-markdown だけ、と実態に合わせた
+- README: 「devtools-common を同じフォルダに clone すると認証なしで入る」は今の install の動き（各ツールが固定した SHA を取りに行く）と違うので直した
+- tests: armory/index.html の各道具の CLI 名が repos.yaml の `cli` と同じかを確かめる
+
 ## 2026-10-06 install が各ツールの固定した devtools-common を使う
 
 - bootstrap.py install: 既定では各ツールを通常の依存解決で入れ、ツールが `devtools-common @ git+…@<SHA>` で固定した版を使う

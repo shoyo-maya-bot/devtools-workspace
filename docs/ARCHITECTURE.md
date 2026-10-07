@@ -55,7 +55,7 @@ devtools-template（[NEW_TOOL.md](NEW_TOOL.md) の手順に置き換え）、ai-
 | 共通化したいもの | 方法 |
 |---|---|
 | 処理（CLI 規約・レポート・ログ・一時ファイル・外部 API） | `devtools-common` を各ツールが Git 依存（コミット SHA 固定）で取り込む |
-| CI（lint / test / SAST / 依存脆弱性） | `devtools-workspace` の再利用ワークフローを `uses: shoyo-maya-bot/devtools-workspace/.github/workflows/python-ci.yml@<SHA>` で呼ぶ |
+| CI（lint / test / SAST / 依存脆弱性） | 再利用ワークフロー `python-ci.yml`（`uses: shoyo-maya-bot/devtools-workspace/.github/workflows/python-ci.yml@<SHA>`）を用意している。**今これを使っているのは devtools-common と doc-to-markdown だけ**（リリースの `python-release.yml` も同じ 2 つ）。ほかのリポジトリは各自の `.github/workflows/ci.yml` に手順を書いている。シークレットは `secrets: inherit` で渡さず、必要なもの（`DEPS_TOKEN`）だけを名前で渡す |
 | lint / format 設定 | 各リポの `pyproject.toml`（`[tool.ruff]`、line-length 120〜140、Python 3.12） |
 | 依存の追随 | 各リポの Dependabot（pip・github-actions） |
 
