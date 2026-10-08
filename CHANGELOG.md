@@ -3,6 +3,19 @@
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/)、版は [SemVer](https://semver.org/lang/ja/) に従います。
 
 
+## 2026-10-08 Python は 3.12 以上、全 Python ツールの一括インストールを CI で、python-ci の inputs を env で渡す
+
+- Python の最低版を 3.12 に（`scripts/python_version.py` の `MIN_VERSION`）。3.11 で「OK」と表示した直後に、
+  `requires-python = ">=3.12"` のツール（office-review など）を pip が入れられなかった。
+  `bootstrap.py check-python` で各ツールの requires-python と一致するか確かめる（テストと統合 CI でも流す）
+- repos.yaml: ai-coding（`tools/spec-trace`）・agent-lab（`auto-review`・`mcp-server`）・review-platform も `python: true`。
+  サブフォルダのパッケージは新しい項目 `packages:` に書く。**既定の `setup`・`install` でこれらも入る**
+- bootstrap.py install: ほかのツールが URL で固定しているパッケージ（review-platform → auto-review）は手元の checkout を入れない（pip の衝突を避ける）
+- CI: `.github/ci-repos.yaml` に Python の全リポジトリを入れ、windows・setup-sh（ubuntu・macOS）で `--only` なしの一括インストールと各 CLI の `--help`・import を確かめる。
+  ci-repos.yaml の SHA を各リポジトリの今の main に上げた。取り出すリポジトリはすべて公開なので DEPS_TOKEN は使わない
+- python-ci.yml: `extra-apt-packages`・`source-dir` を `run:` に直接埋め込まず、手順の `env:` で渡す（スクリプト注入対策）。
+  `extra-apt-packages` はパッケージ名の形だけを受け付ける。inputs の名前・型・既定値は変えていない（呼び出し側はそのまま使える）
+
 ## 2026-10-07 Python の版の確認を 1 か所に、CI の再現性とシークレットの渡し方
 
 - Python の版の確認を `scripts/python_version.py` の 1 か所にまとめた（3.11 以上）。install-prereqs.ps1・setup.ps1・setup.sh・bootstrap.py が使う
