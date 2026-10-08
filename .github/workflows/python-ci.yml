@@ -16,6 +16,9 @@
 #            / セキュリティ（bandit による SAST、pip-audit による依存脆弱性）
 # 依存の版: リポジトリに constraints.txt があれば、pip install に `-c constraints.txt` を付ける
 # ツールの版（ruff・bandit・pip-audit）は下の env で固定する。上げるときはここを書き換え、呼び出し側の SHA を上げる
+# inputs（文字列）は run: に `${{ inputs.… }}` で直接埋め込まず、手順の env: で渡してシェル変数として使う
+# （埋め込むと値がスクリプトの一部として解釈され、`; curl …` のような値でコマンドを注入できるため）。
+# inputs の名前・型・既定値は呼び出し側（SHA で固定）との約束なので変えない
 name: python-ci
 
 on:
@@ -86,7 +89,18 @@ jobs:
           persist-credentials: false
       - name: Install system packages
         if: inputs.extra-apt-packages != ''
-        run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends ${{ inputs.extra-apt-packages }}
+        env:
+          EXTRA_APT_PACKAGES: ${{ inputs.extra-apt-packages }}
+        run: |
+          # 空白区切りのパッケージ名だけを受け付ける（オプション `-…` やシェルの記号は通さない）
+          read -r -a pkgs <<< "$EXTRA_APT_PACKAGES"
+          for p in "${pkgs[@]}"; do
+            if [[ ! "$p" =~ ^[a-z0-9][a-z0-9.+:=~-]*$ ]]; then
+              echo "::error::extra-apt-packages に使えない名前があります: $p"
+              exit 1
+            fi
+          done
+          sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends "${pkgs[@]}"
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python }}
@@ -162,6 +176,11 @@ jobs:
       # 検査ツールはトークンの無い手順で、版を固定して入れる
       - run: pip install "bandit==${BANDIT_VERSION}" "pip-audit==${PIP_AUDIT_VERSION}"
       - name: SAST (bandit)
-        run: bandit -q -r ${{ inputs.source-dir }} -ll
+        env:
+          SOURCE_DIR: ${{ inputs.source-dir }}
+        run: |
+          # 空白区切りで複数のフォルダも書ける（従来どおり）。値はシェルの文として解釈しない
+          read -r -a dirs <<< "$SOURCE_DIR"
+          bandit -q -r -ll -- "${dirs[@]}"
       - name: Dependency vulnerabilities (pip-audit)
         run: pip-audit --skip-editable --progress-spinner off

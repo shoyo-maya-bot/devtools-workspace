@@ -144,6 +144,39 @@ class WorkflowReproducibilityTest(unittest.TestCase):
         self.assertRegex(ci, r"if: inputs\.run-windows\n\s+runs-on: windows-latest")
         self.assertEqual(ci.count("c=(-c constraints.txt)"), 3)  # test・test-windows・security
 
+    def test_python_ci_inputs_are_not_interpolated_into_scripts(self):
+        """inputs を run: に `${{ inputs.… }}` で埋め込まない（値がシェルの文として解釈され、コマンドを注入できる）."""
+        ci = (ROOT / ".github" / "workflows" / "python-ci.yml").read_text(encoding="utf-8")
+        in_run = False
+        run_indent = 0
+        for ln in code_lines(ci):
+            stripped = ln.lstrip()
+            indent = len(ln) - len(stripped)
+            if in_run and stripped and indent <= run_indent:
+                in_run = False
+            if re.match(r"(- )?run:", stripped):
+                in_run, run_indent = True, indent
+                self.assertNotIn("${{ inputs.", stripped, ln)
+                continue
+            if in_run:
+                self.assertNotIn("${{", ln, f"run: の中で式を埋め込んでいます: {ln}")
+        self.assertIn("EXTRA_APT_PACKAGES: ${{ inputs.extra-apt-packages }}", ci)
+        self.assertIn("SOURCE_DIR: ${{ inputs.source-dir }}", ci)
+
+    def test_python_ci_inputs_are_backward_compatible(self):
+        """呼び出し側は SHA で固定しているので、inputs の名前・既定値は変えない."""
+        ci = (ROOT / ".github" / "workflows" / "python-ci.yml").read_text(encoding="utf-8")
+        for name, default in (
+            ("python-versions", 'default: \'["3.10", "3.12"]\''),
+            ("extra-apt-packages", 'default: ""'),
+            ("source-dir", "default: src"),
+            ("run-security", "default: true"),
+            ("run-windows", "default: true"),
+            ("windows-python-version", 'default: "3.12"'),
+        ):
+            with self.subTest(input=name):
+                self.assertRegex(ci, rf"\n      {re.escape(name)}:\n(        .*\n)*?        {re.escape(default)}\n")
+
 
 if __name__ == "__main__":
     unittest.main()
