@@ -10,10 +10,15 @@ permissions:
 
 # 統合のジョブ（windows・setup-sh）が取り出す他のリポジトリは .github/ci-repos.yaml の ref（コミット SHA）に固定する。
 # 他のリポジトリの main が変わっても、このリポジトリの CI の結果は変わらない（上げるときは ci-repos.yaml を書き換える）
+# ci-repos.yaml には repos.yaml の Python のリポジトリをすべて入れ、全ツールの一括インストールを ubuntu・macOS・Windows で通す。
+# 取り出すリポジトリはすべて公開なので、トークン（DEPS_TOKEN）は使わない
 env:
   RUFF_VERSION: "0.15.11"
   BANDIT_VERSION: "1.8.6"
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  # 一括インストールのあとに --help で動くことを確かめる CLI と、import を確かめるモジュール（ci-repos.yaml の全ツール。agenda-bot と devtools-mcp は起動すると待ち受けるので import だけ）
+  SMOKE_CLIS: "doc2md figspec harness fieldcheck design-diff qa office-replace backlog-report spec-trace auto-review review-platform"
+  SMOKE_IMPORTS: "import devtools_common, doc_to_markdown, review_harness, field_validation, design_diff, quality_analytics, office_replace, backlog_report, agenda_bot.app, spec_trace, devtools_mcp.server, auto_review, review_platform; print('imports ok')"
 
 jobs:
   test:
@@ -37,7 +42,7 @@ jobs:
   # 利用者は Windows。入口（install-prereqs.cmd / setup.cmd）が実際に動くことを Windows のランナーで確かめる
   windows:
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     # setup.cmd / install-prereqs.cmd は環境変数 CI が定義されていれば最後の pause をしない（GitHub Actions は自動で CI=true）
     env:
       PIP_DISABLE_PIP_VERSION_CHECK: "1"
@@ -81,13 +86,13 @@ jobs:
         shell: cmd
         run: call install-prereqs.cmd -DryRun
 
-      - name: setup.cmd -Only devtools-common,doc-to-markdown (versions pinned by .github/ci-repos.yaml)
+      - name: setup.cmd — all Python tools (versions pinned by .github/ci-repos.yaml)
         shell: cmd
-        run: call setup.cmd -Manifest .github\ci-repos.yaml -Only devtools-common,doc-to-markdown
+        run: call setup.cmd -Manifest .github\ci-repos.yaml
 
       - name: setup.cmd again (already cloned → pull, idempotent)
         shell: cmd
-        run: call setup.cmd -Manifest .github\ci-repos.yaml -Only devtools-common,doc-to-markdown
+        run: call setup.cmd -Manifest .github\ci-repos.yaml
 
       - name: Smoke test the installed tools
         # ランナーの既定の文字コード（cp1252）では日本語のヘルプを書けないため UTF-8 にする（日本語の Windows は cp932 で表示できる）
@@ -95,19 +100,22 @@ jobs:
           PYTHONUTF8: "1"
         run: |
           $venv = Join-Path (Split-Path $PWD -Parent) ".venv\Scripts"
-          & "$venv\doc2md.exe" --help; if ($LASTEXITCODE) { exit 1 }
-          & "$venv\figspec.exe" --help; if ($LASTEXITCODE) { exit 1 }
-          & "$venv\python.exe" -c "import devtools_common; print('devtools_common', devtools_common.__file__)"; if ($LASTEXITCODE) { exit 1 }
-          python scripts\bootstrap.py --manifest .github\ci-repos.yaml --only devtools-common,doc-to-markdown status
+          foreach ($cli in @($env:SMOKE_CLIS -split ' ')) {
+            & "$venv\$cli.exe" --help > $null; if ($LASTEXITCODE) { Write-Output "::error::$cli --help が失敗しました"; exit 1 }
+            Write-Output "ok $cli"
+          }
+          & "$venv\python.exe" -c $env:SMOKE_IMPORTS; if ($LASTEXITCODE) { exit 1 }
+          python scripts\bootstrap.py --manifest .github\ci-repos.yaml status
+          python scripts\bootstrap.py --manifest .github\ci-repos.yaml check-python; if ($LASTEXITCODE) { exit 1 }
 
-  # macOS・Linux の入口（setup.sh）が実際に動くことを確かめる。Python の版の確認（3.11 以上）もここを通る
+  # macOS・Linux の入口（setup.sh）が実際に動くことを確かめる。Python の版の確認（3.12 以上）もここを通る
   setup-sh:
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -115,16 +123,16 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
-      - name: setup.sh (versions pinned by .github/ci-repos.yaml)
-        run: ./setup.sh --manifest .github/ci-repos.yaml --only devtools-common,doc-to-markdown
+      - name: setup.sh — all Python tools (versions pinned by .github/ci-repos.yaml)
+        run: ./setup.sh --manifest .github/ci-repos.yaml
       - name: setup.sh again (already cloned → pull, idempotent)
-        run: ./setup.sh --manifest .github/ci-repos.yaml --only devtools-common,doc-to-markdown
+        run: ./setup.sh --manifest .github/ci-repos.yaml
       - name: Smoke test the installed tools
         run: |
           venv="$(dirname "$PWD")/.venv/bin"
-          "$venv/doc2md" --help >/dev/null
-          "$venv/figspec" --help >/dev/null
-          "$venv/python" -c "import devtools_common; print('devtools_common', devtools_common.__file__)"
+          for cli in $SMOKE_CLIS; do "$venv/$cli" --help >/dev/null; echo "ok $cli"; done
+          "$venv/python" -c "$SMOKE_IMPORTS"
+          python3 scripts/bootstrap.py --manifest .github/ci-repos.yaml check-python
           # 取り出した版が ci-repos.yaml の ref と同じか
           python3 - <<'PY'
           import subprocess, sys
