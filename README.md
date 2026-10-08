@@ -113,7 +113,10 @@ VS Code で `devtools.code-workspace` を開くと全リポジトリを 1 画面
 ### CLI の共通の約束
 
 Python の CLI は `-f json` の機械可読レポート（[仕様](https://github.com/shoyo-maya-bot/devtools-common/blob/main/docs/REPORT_FORMAT.md)）と、
-そろった終了コード（0 問題なし / 1 指摘あり / 2 前提の誤り / 3 実行時エラー）を返します。Python は 3.12 にそろえています。
+そろった終了コード（0 問題なし / 1 指摘あり / 2 前提の誤り / 3 実行時エラー）を返します。
+Python の版: `setup`（一括インストール）は **3.12 以上** が要ります（各ツールの `requires-python` の下限のうち最も高いもの）。
+ツールごとの `requires-python` の下限はそろっていません: 3.10（devtools-common・doc-to-markdown・design-diff・spec-trace）、3.11（auto-review・devtools-mcp・review-platform）、3.12（office-review・quality-analytics・office-replace・backlog-report・slack-agenda-bot）（`bootstrap.py check-python` で setup の下限と矛盾しないことを確かめます）。
+共通 CI（`python-ci.yml`）の既定は ubuntu で 3.10 と 3.12、Windows で 3.12 です（呼び出し側は `python-versions` で変えられます）。
 
 ## 開発する（全リポをローカルに並べる）
 
@@ -163,6 +166,7 @@ Python のパッケージがサブフォルダにあるリポジトリ（agent-l
 統合のジョブが取り出す他のリポジトリ（repos.yaml の `python: true` の全リポジトリ。テストで確かめる）は、[.github/ci-repos.yaml](.github/ci-repos.yaml) の `ref:` で **コミット SHA に固定** しています。
 他のリポジトリの main が変わってもこのリポジトリの CI は変わらず、同じ結果を再現できます。上げるときは `ci-repos.yaml` の SHA を書き換えて PR を出します。
 CI で入れるツール（ruff・bandit・pip-audit・build）も版を固定しています（`ci.yml`・`python-ci.yml`・`python-release.yml` の先頭の `env` など）。
+`python-release.yml` は build と build backend（setuptools・wheel など）の版を `PIP_CONSTRAINT` で固定し（呼び出し側に `constraints.txt` があればそれも使う）、wheel が固定した setuptools で作られたことを確かめます。
 
 ### 共通の再利用ワークフロー（python-ci.yml）
 
@@ -193,7 +197,7 @@ checkout は `persist-credentials: false` にして、認証情報をランナ�
 
 別の組織に移すときは、各リポジトリの `shoyo-maya-bot` を置き換えてください（`pyproject.toml`、`ci.yml`、README、`repos.yaml`、`mkdocs.yml`、`armory/index.html` の `ORG`）。
 
-- [x] リポジトリを作成して push（13 個 + .github）
+- [x] リポジトリを作成して push（15 個 + .github。一覧は `repos.yaml`）
 - [x] 各ツールは `devtools-common` をコミット SHA で固定して依存（タグ不要）
 - [ ] learning-materials: Settings → Pages → Source を **GitHub Actions** にする（教材サイトの公開）
 - [ ] 各リポの `main` にブランチ保護（CI 必須・レビュー必須）

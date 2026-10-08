@@ -44,7 +44,7 @@ flowchart TB
 | 土台 | `.github` | 低 | アカウント共通の既定ファイル（PR・Issue テンプレートなど。今は空でもよい） |
 | 土台 | `devtools-workspace` | 中 | マニフェスト（`repos.yaml`）・bootstrap・VS Code ワークスペース・パイプライン例・再利用ワークフロー |
 | 開発の基盤 | `dev-environment` / `ai-coding` / `learning-materials` | 中 | main（実案件では会社の GitHub に複製して合わせる） |
-| ツール | doc-to-markdown ほか 6 個 | 高 | 利用者は clone（main）または `pipx install …@<SHA>` |
+| ツール | doc-to-markdown ほか 5 個 | 高 | 利用者は clone（main）または `pipx install …@<SHA>` |
 | そのほか | slack-agenda-bot / slide-tool | 中 | main |
 
 統合・廃止したリポジトリ: field-validation（office-review に同梱）、spec-trace（ai-coding の `tools/spec-trace` に同梱）、

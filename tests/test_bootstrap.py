@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import contextlib
 import io
+import json
+import re
 import shutil
 import sys
 import tempfile
@@ -375,6 +377,36 @@ class CheckPinsTest(unittest.TestCase):
         )
         self.assertIsNone(bootstrap.url_pin("PyYAML>=6"))
 
+    def test_url_pin_ssh_user_is_not_ref(self):
+        """git+ssh://git@host/… のユーザー名の @ を ref の区切りと取り違えない."""
+        self.assertEqual(
+            bootstrap.url_pin("devtools-common @ git+ssh://git@github.com/o/devtools-common.git"),
+            ("devtools-common", "git+ssh://git@github.com/o/devtools-common", ""),
+        )
+        self.assertEqual(
+            bootstrap.url_pin("devtools-common @ git+ssh://git@github.com/o/devtools-common.git@abc"),
+            ("devtools-common", "git+ssh://git@github.com/o/devtools-common", "abc"),
+        )
+        self.assertEqual(
+            bootstrap.url_pin("auto-review @ git+ssh://git@github.com/o/lab.git@def#subdirectory=auto-review"),
+            ("auto-review", "git+ssh://git@github.com/o/lab", "def"),
+        )
+        self.assertEqual(
+            bootstrap.url_pin("devtools-common @ git+https://user@github.com/o/devtools-common.git"),
+            ("devtools-common", "git+https://user@github.com/o/devtools-common", ""),
+        )
+        self.assertEqual(
+            bootstrap.url_pin("devtools-common @ git+https://github.com/o/devtools-common.git"),
+            ("devtools-common", "git+https://github.com/o/devtools-common", ""),
+        )
+
+    def test_ssh_and_https_unpinned_same_repo_reports_by_ref(self):
+        """ssh で ref なしのものは ref 空として扱われ、ユーザー名が ref として表示されない."""
+        self._pkg("tool-a", "tool-a", ["devtools-common @ git+ssh://git@github.com/o/devtools-common.git"])
+        repos = [bootstrap.Repo("tool-a", python=True)]
+        pins = bootstrap.collect_pins(self.tmp, repos)
+        self.assertEqual(list(pins["devtools-common"]), [("git+ssh://git@github.com/o/devtools-common", "")])
+
     def test_same_pins_are_ok(self):
         self._pkg("tool-a", "tool-a", [f"devtools-common @ {self.COMMON_URL}@aaa", "PyYAML>=6"])
         self._pkg("tool-b", "tool-b", [f"devtools-common[excel] @ {self.COMMON_URL}@aaa"])
@@ -493,3 +525,52 @@ class ReadmeNeighborCommonTest(unittest.TestCase):
         self.assertNotIn("同じフォルダに clone した devtools-common は使いません", text)
         self.assertIn("scripts/install_deps.py", text)
         self.assertIn("隣のフォルダに devtools-common があればそれを editable で入れて", text)
+
+
+class ReadmeFactsTest(unittest.TestCase):
+    """README に書いた数・版が、repos.yaml・python-ci.yml・各ツールの requires-python と合っている."""
+
+    def setUp(self):
+        self.readme = (ROOT / "README.md").read_text(encoding="utf-8")
+
+    def test_repo_count_matches_manifest(self):
+        _, repos = bootstrap.load_manifest()
+        m = re.search(r"リポジトリを作成して push（(\d+) 個 \+ \.github", self.readme)
+        self.assertIsNotNone(m, "README にリポジトリ数の記述がありません")
+        self.assertEqual(int(m.group(1)), len([r for r in repos if r.name != ".github"]))
+
+    def test_python_ci_defaults_match_readme(self):
+        ci = (ROOT / ".github" / "workflows" / "python-ci.yml").read_text(encoding="utf-8")
+        versions = re.search(r"\n      python-versions:\n(?:        .*\n)*?        default: '(\[.*\])'", ci)
+        windows = re.search(r'\n      windows-python-version:\n(?:        .*\n)*?        default: "([\d.]+)"', ci)
+        self.assertIsNotNone(versions)
+        self.assertIsNotNone(windows)
+        ubuntu = " と ".join(json.loads(versions.group(1)))
+        want = f"共通 CI（`python-ci.yml`）の既定は ubuntu で {ubuntu}、Windows で {windows.group(1)} です"
+        self.assertIn(want, self.readme)
+        self.assertNotIn("Python は 3.12 にそろえています", self.readme)
+
+    def test_requires_python_groups_match_checkouts(self):
+        """兄弟に取得済みのリポジトリがあれば、README のツールごとの requires-python の一覧と実物が合う."""
+        root = ROOT.parent
+        _, repos = bootstrap.load_manifest()
+        actual: dict[str, str] = {}
+        for r in repos:
+            if not r.python:
+                continue
+            for d in r.package_dirs(root):
+                project = bootstrap._project(d)
+                low = bootstrap.requires_python_lower_bound(project.get("requires-python", ""))
+                actual[str(project.get("name", d.name))] = ".".join(map(str, low))
+        if not actual:
+            self.skipTest("兄弟のリポジトリが未取得（統合ジョブで確かめる）")
+        stated: dict[str, str] = {}
+        line = re.search(r"`requires-python` の下限はそろっていません: (.*)", self.readme)
+        self.assertIsNotNone(line, "README にツールごとの requires-python の記述がありません")
+        for ver, names in re.findall(r"(3\.\d+)（([^）]+)）", line.group(1)):
+            for n in names.split("・"):
+                stated[n] = ver
+        for name, ver in actual.items():
+            with self.subTest(package=name):
+                self.assertIn(name, stated, f"README の requires-python の一覧に {name} がありません")
+                self.assertEqual(stated[name], ver)
