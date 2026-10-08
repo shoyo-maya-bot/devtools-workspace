@@ -262,6 +262,86 @@ class RefTest(unittest.TestCase):
         self.assertEqual((tmp / "ws" / "a" / "f.txt").read_text(encoding="utf-8"), "2\n")
         self.assertIn("pull   a: v2", out.getvalue())
 
+    def _repo_with_tags(self, tmp: Path) -> Path:
+        """v1・v2 のタグがある元のリポジトリ（tmp/src）を作り、ws/a に clone する（a は既定ブランチの最新 = v2）."""
+        ident = ["-c", "user.name=t", "-c", "user.email=t@example.com"]
+        src = tmp / "src"
+        src.mkdir()
+        self._git("init", "-q", "-b", "main", cwd=src)
+        (src / "pyproject.toml").write_text('[project]\nname = "a"\nversion = "1"\n', encoding="utf-8")
+        self._git("add", ".", cwd=src)
+        self._git(*ident, "commit", "-q", "-m", "1", cwd=src)
+        self._git("tag", "v1", cwd=src)
+        (src / "pyproject.toml").write_text('[project]\nname = "a"\nversion = "2"\n', encoding="utf-8")
+        self._git(*ident, "commit", "-q", "-am", "2", cwd=src)
+        self._git("tag", "v2", cwd=src)
+        self._git("clone", "-q", str(src), str(tmp / "ws" / "a"), cwd=tmp)
+        return src
+
+    def test_install_stops_when_head_is_not_ref(self):
+        """ref にそろえられずに既定ブランチのまま残ったリポジトリを、そのまま install しない."""
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        self._repo_with_tags(tmp)
+        ws = tmp / "ws"
+        for ref in ("v1", "no-such-ref"):
+            with self.subTest(ref=ref):
+                repos = [bootstrap.Repo(name="a", python=True, ref=ref)]
+                self.assertTrue(bootstrap.ref_mismatches(ws, repos))
+                out, err = io.StringIO(), io.StringIO()
+                with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                    code = bootstrap.cmd_install(ws, repos, None, dry_run=True)
+                self.assertEqual(code, 1)
+                self.assertIn("NG     a:", err.getvalue())
+                self.assertIn(ref, err.getvalue())
+                self.assertNotIn("pip", out.getvalue())  # pip の計画まで進まない
+
+        # ref にそろっていれば止めない（タグ・SHA・ブランチ）
+        head = self._git("rev-parse", "HEAD", cwd=ws / "a")
+        for ref in ("v2", head, "main"):
+            with self.subTest(ok=ref):
+                repos = [bootstrap.Repo(name="a", python=True, ref=ref)]
+                self.assertEqual(bootstrap.ref_mismatches(ws, repos), [])
+                with contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(bootstrap.cmd_install(ws, repos, None, dry_run=True), 0)
+
+    def test_rerun_after_failed_checkout_does_not_install_default_branch(self):
+        """clone 後の checkout が失敗 → 再実行で clone は skip・pull も失敗 → install で止まる（setup.sh の流れ）."""
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        self._repo_with_tags(tmp)
+        ws = tmp / "ws"
+        repos = [bootstrap.Repo(name="a", python=True, ref="missing-tag")]
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(bootstrap.cmd_clone(ws, {"org": "o"}, repos, None), 0)
+        self.assertIn("skip   a（取得済み。ref には pull でそろえる）", out.getvalue())
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(bootstrap.cmd_pull(ws, repos), 1)
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as err:
+            self.assertEqual(bootstrap.cmd_install(ws, repos, None, dry_run=True), 1)
+        self.assertIn("missing-tag が手元にありません", err.getvalue())
+
+    def test_clone_reports_ref_that_cannot_be_checked_out(self):
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        src = self._repo_with_tags(tmp)
+        shutil.rmtree(tmp / "ws")
+        repos = [bootstrap.Repo(name="src", ref="missing-tag")]
+        top = {"org": "o", "host": tmp.as_uri()}
+        # host/org/name.git → tmp/o/src.git に置く
+        (tmp / "o").mkdir()
+        self._git("clone", "-q", "--bare", str(src), str(tmp / "o" / "src.git"), cwd=tmp)
+        with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as cm:
+            bootstrap.cmd_clone(tmp / "ws", top, repos, None)
+        self.assertIn("missing-tag を取り出せませんでした", str(cm.exception))
+
+    def test_setup_scripts_do_not_promise_to_continue_on_ref_failure(self):
+        for name in ("setup.sh", "scripts/setup.ps1"):
+            text = (ROOT / name).read_text(encoding="utf-8-sig")
+            with self.subTest(file=name):
+                self.assertNotIn("セットアップは続けます。", text)
+                self.assertIn("インストールの前に止めます", text)
+
 
 class SelectReposTest(unittest.TestCase):
     """--only で一部のリポジトリだけを扱う（CI や、必要なものだけ取りたいとき）."""
