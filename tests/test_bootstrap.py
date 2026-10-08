@@ -262,7 +262,7 @@ class RefTest(unittest.TestCase):
         self.assertEqual((tmp / "ws" / "a" / "f.txt").read_text(encoding="utf-8"), "2\n")
         self.assertIn("pull   a: v2", out.getvalue())
 
-    def _repo_with_tags(self, tmp: Path) -> Path:
+    def _repo_with_tags(self, tmp: Path, clone: bool = True) -> Path:
         """v1・v2 のタグがある元のリポジトリ（tmp/src）を作り、ws/a に clone する（a は既定ブランチの最新 = v2）."""
         ident = ["-c", "user.name=t", "-c", "user.email=t@example.com"]
         src = tmp / "src"
@@ -275,7 +275,8 @@ class RefTest(unittest.TestCase):
         (src / "pyproject.toml").write_text('[project]\nname = "a"\nversion = "2"\n', encoding="utf-8")
         self._git(*ident, "commit", "-q", "-am", "2", cwd=src)
         self._git("tag", "v2", cwd=src)
-        self._git("clone", "-q", str(src), str(tmp / "ws" / "a"), cwd=tmp)
+        if clone:
+            self._git("clone", "-q", str(src), str(tmp / "ws" / "a"), cwd=tmp)
         return src
 
     def test_install_stops_when_head_is_not_ref(self):
@@ -324,8 +325,7 @@ class RefTest(unittest.TestCase):
     def test_clone_reports_ref_that_cannot_be_checked_out(self):
         tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
-        src = self._repo_with_tags(tmp)
-        shutil.rmtree(tmp / "ws")
+        src = self._repo_with_tags(tmp, clone=False)
         repos = [bootstrap.Repo(name="src", ref="missing-tag")]
         top = {"org": "o", "host": tmp.as_uri()}
         # host/org/name.git → tmp/o/src.git に置く
