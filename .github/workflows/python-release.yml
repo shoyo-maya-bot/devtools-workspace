@@ -1,20 +1,185 @@
 # 共通のリリース（再利用可能ワークフロー）。devtools-workspace に置き、各ツールから SHA 固定で呼ぶ
 #
 # v* タグの push で呼び出す。タグと pyproject.toml の version が一致しなければ失敗する。
-# wheel / sdist を GitHub Release に添付する（利用者は pipx install <wheel URL> や Git タグ指定で導入）。
+# 公開の前に、python-ci.yml と同じ lint・test（ubuntu の複数 Python と Windows）をタグのコミットで流し、
+# すべて通ったときだけ wheel / sdist をビルドして GitHub Release に添付する（利用者は pipx install <wheel URL> や Git タグ指定で導入）。
+# lint・test・test-windows のジョブは python-ci.yml と同じ内容にする（tests/test_workflows.py で確かめる）。
+# CI で with: を渡しているリポジトリ（extra-apt-packages など）は、リリースの呼び出しにも同じ with: を渡す。
+# inputs はすべて省略可（既定値は python-ci.yml と同じ）なので、今の呼び出し方のままでも動く
 name: python-release
 
 on:
   workflow_call:
+    inputs:
+      python-versions:
+        description: テストする Python のバージョン（JSON 配列。ubuntu で流す）
+        type: string
+        default: '["3.10", "3.12"]'
+      extra-apt-packages:
+        description: テスト前に apt で入れるパッケージ（空白区切り。ubuntu だけ）
+        type: string
+        default: ""
+      run-windows:
+        description: Windows（windows-latest）でもテストを流す（利用者の多くは Windows のため既定でオン）
+        type: boolean
+        default: true
+      windows-python-version:
+        description: Windows で使う Python のバージョン
+        type: string
+        default: "3.12"
     secrets:
       DEPS_TOKEN:
+        description: 非公開の依存リポジトリを読むためのトークン（read-only）。テストの依存のインストールの git clone だけで使う
         required: false
 
 permissions:
-  contents: write
+  contents: read
+
+env:
+  RUFF_VERSION: "0.15.11"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - run: pip install "ruff==${RUFF_VERSION}"
+      - run: ruff check --output-format=github .
+      - run: ruff format --check .
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ${{ fromJSON(inputs.python-versions) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install system packages
+        if: inputs.extra-apt-packages != ''
+        env:
+          EXTRA_APT_PACKAGES: ${{ inputs.extra-apt-packages }}
+        run: |
+          # 空白区切りのパッケージ名だけを受け付ける（オプション `-…` やシェルの記号は通さない）
+          read -r -a pkgs <<< "$EXTRA_APT_PACKAGES"
+          for p in "${pkgs[@]}"; do
+            if [[ ! "$p" =~ ^[a-z0-9][a-z0-9.+:=~-]*$ ]]; then
+              echo "::error::extra-apt-packages に使えない名前があります: $p"
+              exit 1
+            fi
+          done
+          sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends "${pkgs[@]}"
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - name: Install (DEPS_TOKEN はこの手順の中だけで使い、ファイルに書かない)
+        env:
+          DEPS_TOKEN: ${{ secrets.DEPS_TOKEN }}
+        run: |
+          # DEPS_TOKEN は git 依存の取得（git clone）だけに使い、pip には渡さない（pip が第三者の sdist をビルドするとき、
+          # そのビルドのコードからトークンが読めてしまうため）。git の設定ファイル（~/.gitconfig）にも書かない。
+          # 1. pyproject.toml・constraints.txt にある github.com の git 依存を、トークン付きで手元の bare リポジトリ（RUNNER_TEMP）に写す
+          # 2. トークンを消し、pip の git には insteadOf（トークンなし）でその写しを読ませる
+          # 写すのは両ファイルに書いた github.com の依存だけ（constraints.txt があれば間接の git 依存も入る）
+          if [ -n "${DEPS_TOKEN:-}" ]; then
+            mirrors="$RUNNER_TEMP/git-deps"
+            if command -v cygpath >/dev/null 2>&1; then mirrors="$(cygpath -u "$RUNNER_TEMP")/git-deps"; fi
+            mkdir -p "$mirrors"
+            deps=$(cat pyproject.toml constraints.txt 2>/dev/null | grep -oE 'git\+https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+' | sed -E 's#^git\+https://github\.com/##; s#\.git$##' | sort -u || true)
+            n=0
+            for dep in $deps; do
+              dest="$mirrors/$dep.git"
+              echo "git 依存を取得します: github.com/$dep"
+              GIT_CONFIG_COUNT=1 \
+              GIT_CONFIG_KEY_0="url.https://x-access-token:${DEPS_TOKEN}@github.com/.insteadOf" \
+              GIT_CONFIG_VALUE_0="https://github.com/" \
+                git clone --quiet --mirror "https://github.com/$dep.git" "$dest"
+              local_path="$dest"
+              if command -v cygpath >/dev/null 2>&1; then local_path="$(cygpath -m "$dest")"; fi
+              for from in "https://github.com/$dep.git" "https://github.com/$dep"; do
+                export "GIT_CONFIG_KEY_$n=url.$local_path.insteadOf" "GIT_CONFIG_VALUE_$n=$from"
+                n=$((n + 1))
+              done
+            done
+            export GIT_CONFIG_COUNT=$n
+          fi
+          unset DEPS_TOKEN
+          c=(); if [ -f constraints.txt ]; then c=(-c constraints.txt); echo "constraints.txt を使います"; fi
+          pip install -e ".[dev]" "${c[@]}"
+      - run: pytest -q
+
+  # 利用者の多くは Windows。パス・改行・文字コードの違いで落ちないかを確かめる（extra-apt-packages は入れない）
+  test-windows:
+    if: inputs.run-windows
+    runs-on: windows-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    # PYTHONUTF8 は付けない（open() の encoding 忘れなど、文字コードの誤りをここで見つけるため）
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ inputs.windows-python-version }}
+          cache: pip
+      - name: Install (DEPS_TOKEN はこの手順の中だけで使い、ファイルに書かない)
+        env:
+          DEPS_TOKEN: ${{ secrets.DEPS_TOKEN }}
+        run: |
+          # DEPS_TOKEN は git 依存の取得（git clone）だけに使い、pip には渡さない（pip が第三者の sdist をビルドするとき、
+          # そのビルドのコードからトークンが読めてしまうため）。git の設定ファイル（~/.gitconfig）にも書かない。
+          # 1. pyproject.toml・constraints.txt にある github.com の git 依存を、トークン付きで手元の bare リポジトリ（RUNNER_TEMP）に写す
+          # 2. トークンを消し、pip の git には insteadOf（トークンなし）でその写しを読ませる
+          # 写すのは両ファイルに書いた github.com の依存だけ（constraints.txt があれば間接の git 依存も入る）
+          if [ -n "${DEPS_TOKEN:-}" ]; then
+            mirrors="$RUNNER_TEMP/git-deps"
+            if command -v cygpath >/dev/null 2>&1; then mirrors="$(cygpath -u "$RUNNER_TEMP")/git-deps"; fi
+            mkdir -p "$mirrors"
+            deps=$(cat pyproject.toml constraints.txt 2>/dev/null | grep -oE 'git\+https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+' | sed -E 's#^git\+https://github\.com/##; s#\.git$##' | sort -u || true)
+            n=0
+            for dep in $deps; do
+              dest="$mirrors/$dep.git"
+              echo "git 依存を取得します: github.com/$dep"
+              GIT_CONFIG_COUNT=1 \
+              GIT_CONFIG_KEY_0="url.https://x-access-token:${DEPS_TOKEN}@github.com/.insteadOf" \
+              GIT_CONFIG_VALUE_0="https://github.com/" \
+                git clone --quiet --mirror "https://github.com/$dep.git" "$dest"
+              local_path="$dest"
+              if command -v cygpath >/dev/null 2>&1; then local_path="$(cygpath -m "$dest")"; fi
+              for from in "https://github.com/$dep.git" "https://github.com/$dep"; do
+                export "GIT_CONFIG_KEY_$n=url.$local_path.insteadOf" "GIT_CONFIG_VALUE_$n=$from"
+                n=$((n + 1))
+              done
+            done
+            export GIT_CONFIG_COUNT=$n
+          fi
+          unset DEPS_TOKEN
+          c=(); if [ -f constraints.txt ]; then c=(-c constraints.txt); echo "constraints.txt を使います"; fi
+          pip install -e ".[dev]" "${c[@]}"
+      - run: pytest -q
+
   release:
+    # テストがすべて通ったときだけ公開する（run-windows: false で test-windows を飛ばしたときは、それ以外が通れば公開する）
+    needs: [lint, test, test-windows]
+    if: >-
+      ${{ !cancelled() && needs.lint.result == 'success' && needs.test.result == 'success'
+      && (needs.test-windows.result == 'success' || (needs.test-windows.result == 'skipped' && !inputs.run-windows)) }}
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
