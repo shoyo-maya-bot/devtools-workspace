@@ -12,7 +12,7 @@ Set-Location (Split-Path $PSScriptRoot -Parent)
 # 日本語の表示が化けたり、出力先の文字コードで書けずに止まったりしないよう、Python の入出力を UTF-8 にする
 $env:PYTHONUTF8 = "1"
 
-# 3.11 以上の Python を探す（py ランチャーが古い版を選ぶこともあるので、版を確かめてから使う）
+# 3.12 以上の Python を探す（py ランチャーが古い版を選ぶこともあるので、版を確かめてから使う）
 # 必要な版の判定は scripts\python_version.py の 1 か所にまとめている（install-prereqs.ps1・setup.sh・bootstrap.py も同じものを使う）
 $versionCheck = Join-Path $PSScriptRoot "python_version.py"
 $py = $null; $pyArgs = @()
@@ -23,7 +23,7 @@ foreach ($c in @("py", "python", "python3")) {
     & $c @a $versionCheck --quiet
     if ($LASTEXITCODE -eq 0) { $py = $c; $pyArgs = $a; break }
 }
-if (-not $py) { Write-Host "Python 3.11 以上をインストールしてください: https://www.python.org/downloads/" -ForegroundColor Red; exit 1 }
+if (-not $py) { Write-Host "Python 3.12 以上をインストールしてください: https://www.python.org/downloads/" -ForegroundColor Red; exit 1 }
 & $py @pyArgs $versionCheck
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) { Write-Host "Git をインストールしてください: https://git-scm.com/" -ForegroundColor Red; exit 1 }
 

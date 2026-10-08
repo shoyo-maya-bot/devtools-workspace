@@ -3,14 +3,16 @@
 setup.sh・scripts/setup.ps1・scripts/install-prereqs.ps1・scripts/bootstrap.py はすべてここを使う。
 古い Python（macOS 標準の 3.9 など）でも読めるよう、f 文字列・型注釈・3.x 専用の書き方を使わない。
 
-    python3 scripts/python_version.py           # 3.11 以上なら 0、未満なら理由を表示して 1
+    python3 scripts/python_version.py           # 3.12 以上なら 0、未満なら理由を表示して 1
     python3 scripts/python_version.py --quiet   # 何も表示せず、終了コードだけ返す（候補の Python を探すとき）
 """
 
 import sys
 
-# bootstrap.py が tomllib（3.11 で標準ライブラリに入った）を使うため 3.11 以上が要る
-MIN_VERSION = (3, 11)
+# 各ツールの pyproject.toml の requires-python の下限のうち最も高いもの（今は 3.12）に合わせる。
+# これより低いと、setup は通っても pip がツールを入れられない（bootstrap.py check-python とテストで確かめる）。
+# bootstrap.py が使う tomllib は 3.11 から標準ライブラリにある
+MIN_VERSION = (3, 12)
 
 
 def version_text(info=None):

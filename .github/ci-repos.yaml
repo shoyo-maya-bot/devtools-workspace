@@ -1,7 +1,8 @@
 # 統合 CI（ci.yml の windows・setup-sh ジョブ）が取り出すリポジトリと版（repos.yaml と同じ書き方）
 # 他のリポジトリの main が変わってもこのリポジトリの CI が落ちたり結果が変わったりしないよう、ref をコミット SHA で固定する。
 # 上げるとき: 各リポジトリの main の SHA に書き換えて PR を出す（CI がその組み合わせで setup を通すことを確かめる）。
-# 項目は repos.yaml の一部で、name・role・python・cli は repos.yaml と同じにする（tests/test_bootstrap.py で確かめる）
+# 項目は repos.yaml の一部で、name・role・python・cli・packages は repos.yaml と同じにする（tests/test_bootstrap.py で確かめる）。
+# repos.yaml の python: true のリポジトリはすべてここに入れる（全ツールの一括インストールを CI で通すため。同じテストで確かめる）
 org: shoyo-maya-bot
 host: https://github.com
 
@@ -9,10 +10,62 @@ repos:
   - name: devtools-common
     role: library
     python: true
-    ref: 61ca10f418b7176741cc7977f5971f69da63960d
+    ref: 28bab4c4bfcf2eba9278a6c7a7ef2d660d983233
+
+  - name: ai-coding
+    role: guide
+    python: true
+    packages: tools/spec-trace
+    ref: 5f3d17470de25e343a455f00b2eb16c77f123d00
 
   - name: doc-to-markdown
     role: tool
     python: true
     cli: doc2md
-    ref: 515dbeb7f702ce0cbe8f7c8d497e55585ead9555
+    ref: 7e329f326abd38de8ce844aca34e429b6aae483d
+
+  - name: office-review
+    role: tool
+    python: true
+    cli: harness
+    ref: 1a48c427a819c79e2f4937266e3afd0652e89ced
+
+  - name: design-diff
+    role: tool
+    python: true
+    cli: design-diff
+    ref: 2ed9b9432b87401f411a5fdddf272fee077fbace
+
+  - name: quality-analytics
+    role: tool
+    python: true
+    cli: qa
+    ref: 2e86c3483a7945cfe8598cac0ef8d4a1d86c45ee
+
+  - name: office-replace
+    role: tool
+    python: true
+    cli: office-replace
+    ref: 9243dd077c929dac04293e56aeb02d14d7af7af2
+
+  - name: backlog-report
+    role: tool
+    python: true
+    cli: backlog-report
+    ref: dc722bea9e5344dbcd13de3047389fc27d4f0500
+
+  - name: slack-agenda-bot
+    role: app
+    python: true
+    ref: 006475fe9f0a0d60b642dd21ba65df9335263482
+
+  - name: agent-lab
+    role: lab
+    python: true
+    packages: auto-review,mcp-server
+    ref: 8408d71cf5b2a9bdebfbb2455aeb21f9b3551527
+
+  - name: review-platform
+    role: platform
+    python: true
+    ref: bc587d224b11a21d9ee8e11f19f19d7a630875e6

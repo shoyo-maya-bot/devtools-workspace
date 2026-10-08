@@ -4,6 +4,7 @@
 #         environment（開発環境・サンプルアプリ）/ guide（ガイドライン・テンプレート）/ docs（教材・資料）/ slides（スライド）/
 #         lab（実験）/ platform（クラウドに置く基盤）/ org-standard（アカウント共通の既定ファイル）
 #   python: true のものは `bootstrap.py install` で共有の仮想環境に入る
+#   packages: 任意。Python のパッケージがサブフォルダにあるときの相対パス（カンマ区切り。書かなければリポジトリ直下）
 #   ref: 任意。clone / pull で取り出すブランチ・タグ・コミット SHA（書かなければ既定ブランチ）
 org: shoyo-maya-bot
 host: https://github.com
@@ -28,6 +29,8 @@ repos:
 
   - name: ai-coding
     role: guide
+    python: true
+    packages: tools/spec-trace
     description: AI と進める設計 → 実装 → 単体テスト → レビューの手順・品質ゲート・エージェント・対応表（spec-trace 同梱）
 
   - name: doc-to-markdown
@@ -81,8 +84,11 @@ repos:
 
   - name: agent-lab
     role: lab
+    python: true
+    packages: auto-review,mcp-server
     description: AI エージェントの実験（MCP・自律度・マルチモデルの相互レビュー）。設計の段階
 
   - name: review-platform
     role: platform
+    python: true
     description: 設計書とコードの差分を AI でレビューする基盤（API と MCP、ローカル・AWS・Azure で同じコード、Terraform 付き）。AWS・Azure・MCP の学習の題材

@@ -4,7 +4,7 @@
 #   ./setup.sh --only devtools-common,doc-to-markdown   一部のリポジトリだけ取得・インストールする
 #   ./setup.sh --dev         開発者向け: devtools-common をローカルの checkout で置き換えて入れる（既定は各ツールが固定した版）
 #   ./setup.sh --manifest <ファイル>   repos.yaml の代わりに使うマニフェスト（CI では ref を SHA で固定したものを使う）
-# Python は 3.11 以上が要る（版の判定は scripts/python_version.py の 1 か所。python3.13 → … → python3 の順に探す）
+# Python は 3.12 以上が要る（版の判定は scripts/python_version.py の 1 か所。python3.14 → … → python3 の順に探す）
 set -euo pipefail
 cd "$(dirname "$0")"
 ORG=""
@@ -22,14 +22,14 @@ while [ $# -gt 0 ]; do
 done
 command -v git >/dev/null || { echo "Git をインストールしてください" >&2; exit 1; }
 PY=""
-for c in python3.13 python3.12 python3.11 python3 python; do
+for c in python3.14 python3.13 python3.12 python3 python; do
   command -v "$c" >/dev/null || continue
   if "$c" scripts/python_version.py --quiet; then PY="$c"; break; fi
 done
 if [ -z "$PY" ]; then
   # 見つからなかった理由（今の版）を表示する
   if command -v python3 >/dev/null; then python3 scripts/python_version.py || true; fi
-  echo "Python 3.11 以上が見つかりません。https://www.python.org/downloads/ から 3.12 を入れてください" >&2
+  echo "Python 3.12 以上が見つかりません。https://www.python.org/downloads/ から 3.12 を入れてください" >&2
   exit 1
 fi
 "$PY" scripts/python_version.py

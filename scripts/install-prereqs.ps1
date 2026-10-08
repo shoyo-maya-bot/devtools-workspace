@@ -29,7 +29,7 @@ function Get-JavaMajor {
     return 0
 }
 
-# 必要な版（3.11 以上）の Python があるか。版の判定は scripts\python_version.py の 1 か所（setup.ps1・setup.sh・bootstrap.py と共通）
+# 必要な版（3.12 以上）の Python があるか。版の判定は scripts\python_version.py の 1 か所（setup.ps1・setup.sh・bootstrap.py と共通）
 # py ランチャーや python があるだけでは足りない（古い版だと setup.cmd が失敗する）
 function Get-PythonStatus {
     $check = Join-Path $PSScriptRoot "python_version.py"
@@ -42,7 +42,7 @@ function Get-PythonStatus {
         $v = Invoke-Native "$c $a -c `"import sys; print(sys.version.split()[0])`""
         if ($v.Code -eq 0 -and $v.Out.Trim()) { $seen += $v.Out.Trim() }
     }
-    if ($seen.Count) { return @{ Ok = $false; Note = "（今の Python は $($seen -join ', ')。3.11 以上が要るので 3.12 を追加で入れます）" } }
+    if ($seen.Count) { return @{ Ok = $false; Note = "（今の Python は $($seen -join ', ')。3.12 以上が要るので 3.12 を追加で入れます）" } }
     return @{ Ok = $false; Note = "" }
 }
 
@@ -70,7 +70,7 @@ function Test-WingetInstalled([string]$id) {
 $tools = @(
     @{ Name = "Git";                Id = "Git.Git";                    Why = "リポジトリの取得";
        Test = { [bool](Get-Command git -ErrorAction SilentlyContinue) } },
-    @{ Name = "Python 3.12";        Id = "Python.Python.3.12";         Why = "devtools の CLI（3.11 以上）";
+    @{ Name = "Python 3.12";        Id = "Python.Python.3.12";         Why = "devtools の CLI（3.12 以上）";
        Test = { (Get-PythonStatus).Ok -or (Test-WingetInstalled "Python.Python.3.12") } },
     @{ Name = "Amazon Corretto 17"; Id = "Amazon.Corretto.17.JDK";     Why = "sample-app のビルド（Java 17 以上が要る）";
        Test = { (Get-JavaMajor) -ge 17 } },

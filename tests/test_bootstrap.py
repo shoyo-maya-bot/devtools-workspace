@@ -45,8 +45,25 @@ class ManifestTest(unittest.TestCase):
             with self.subTest(repo=r.name):
                 self.assertIn(r.name, by_name)
                 m = by_name[r.name]
-                self.assertEqual((r.role, r.python, r.cli), (m.role, m.python, m.cli))
+                self.assertEqual((r.role, r.python, r.cli, r.packages), (m.role, m.python, m.cli, m.packages))
                 self.assertRegex(r.ref, r"^[0-9a-f]{40}$", "ref はコミット SHA（40 桁）で固定する")
+
+    def test_ci_manifest_has_every_python_repo(self):
+        """全 Python ツールの一括インストールを CI で通すため、python: true のリポジトリはすべて入れる."""
+        _, repos = bootstrap.load_manifest()
+        _, ci_repos = bootstrap.load_manifest(ROOT / ".github" / "ci-repos.yaml")
+        want = {r.name for r in repos if r.python}
+        self.assertEqual({r.name for r in ci_repos if r.python}, want)
+        for name in ("agent-lab", "review-platform", "ai-coding", "slack-agenda-bot"):
+            self.assertIn(name, want)  # サブフォルダ・アプリ・基盤の Python 部分も入れる
+
+    def test_ci_installs_all_tools_without_only(self):
+        ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+        self.assertIn("call setup.cmd -Manifest .github\\ci-repos.yaml\n", ci)
+        self.assertIn("./setup.sh --manifest .github/ci-repos.yaml\n", ci)
+        self.assertNotIn("--only devtools-common,doc-to-markdown", ci)
+        self.assertNotIn("-Only devtools-common,doc-to-markdown", ci)
+        self.assertEqual(ci.count("check-python"), 2)  # windows と setup-sh
 
     def test_code_workspace_lists_all_repos(self):
         text = (ROOT / "devtools.code-workspace").read_text(encoding="utf-8")
@@ -128,6 +145,42 @@ class InstallPlanTest(unittest.TestCase):
             self.assertEqual(bootstrap.main(["--root", str(self.tmp), "install", "--dry-run"]), 0)
         self.assertIn("| doc-to-markdown | tool | `doc2md` |", out.getvalue())
         self.assertIn("| office-review | tool | `harness` |", out.getvalue())
+
+    def test_subfolder_packages_and_url_pinned_local_package(self):
+        """サブフォルダのパッケージ（agent-lab の auto-review・mcp-server など）も入れる.
+
+        ほかのツールが URL で固定しているもの（review-platform → auto-review）は手元の checkout を入れない
+        （同じ名前を 2 か所から入れると pip が衝突で止まる）。--dev ではローカルで置き換える。
+        """
+        for rel, name, deps in (
+            ("lab/auto-review", "auto-review", '["devtools-common @ git+https://x/devtools-common@abc"]'),
+            ("lab/mcp-server", "devtools-mcp", '["mcp>=2,<3"]'),
+            ("platform", "platform", '["auto-review @ git+https://x/lab@abc#subdirectory=auto-review", "httpx>=0.27"]'),
+        ):
+            d = self.tmp / rel
+            d.mkdir(parents=True)
+            (d / "pyproject.toml").write_text(f'[project]\nname = "{name}"\ndependencies = {deps}\n', encoding="utf-8")
+        repos = [
+            *self._repos(),
+            bootstrap.Repo("lab", python=True, packages="auto-review, mcp-server"),
+            bootstrap.Repo("platform", python=True),
+        ]
+        notes: list[str] = []
+        plan = bootstrap.install_plan(self.tmp, repos, notes=notes)
+        want = ["tool-a", "lab/mcp-server", "platform"]
+        self.assertEqual(plan, [["install", *[a for w in want for a in ("-e", str(self.tmp / w))]]])
+        self.assertTrue(any(n.startswith("auto-review: ほかのツールが固定した版を入れる") for n in notes), notes)
+
+        dev = bootstrap.install_plan(self.tmp, repos, dev=True)
+        flat = [" ".join(p) for p in dev]
+        self.assertIn(f"install --no-deps -e {self.tmp / 'lab/auto-review'}", flat)
+        self.assertFalse(any("git+" in f for f in flat))  # ローカルの checkout で置き換える
+        self.assertIn("httpx>=0.27", dev[1])
+
+    def test_package_dirs(self):
+        self.assertEqual(bootstrap.Repo("tool-a").package_dirs(self.tmp), [self.tmp / "tool-a"])
+        self.assertEqual(bootstrap.Repo("tool-a", packages="nope").package_dirs(self.tmp), [])
+        self.assertEqual(bootstrap.Repo("not-cloned").package_dirs(self.tmp), [])
 
     def test_clone_requires_org(self):
         with self.assertRaises(SystemExit):
