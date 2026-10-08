@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+import json
+import os
 import re
+import shutil
+import subprocess  # nosec B404 - テストで node・bash・pwsh を呼ぶ
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -69,6 +74,104 @@ class ArmoryTest(unittest.TestCase):
             with self.subTest(item=name):
                 self.assertIn("skill:{p:", block)
                 self.assertRegex(block, r"steps:\[\s*\[")
+
+
+def home_path_source() -> str:
+    """armory/index.html の homePath 関数の JavaScript."""
+    m = re.search(r"^function homePath\(raw,kind\)\{\n.*?^\}\n", armory_text(), re.M | re.S)
+    if m is None:
+        raise AssertionError("armory/index.html に homePath が見つかりません")
+    return m.group(0)
+
+
+def home_path_exprs(inputs: list[str], kind: str) -> list[str]:
+    """homePath を node で実行し、入力ごとにマクロへ埋め込む式を返す."""
+    call = f"{json.dumps(inputs)}.map(x=>homePath(x,{json.dumps(kind)}))"
+    script = home_path_source() + f"process.stdout.write(JSON.stringify({call}))"
+    out = subprocess.run(["node", "-e", script], capture_output=True, text=True, encoding="utf-8", check=True)  # nosec B603 B607
+    return json.loads(out.stdout)
+
+
+HAVE_BASH = os.name != "nt" and shutil.which("bash") is not None
+
+# シェルの記号を含む保存先（貼りつけた値がそのままフォルダ名になり、コマンドとして実行されないこと）
+HOSTILE_DIRS = [
+    "work/it's mine",
+    "a'; touch PWNED; echo 'b",
+    'x"; touch PWNED; echo "y',
+    "$(touch PWNED)",
+    "`touch PWNED`",
+    "${HOME}/plain",
+    "a\nb; touch PWNED",
+    "line1\ntouch PWNED",
+    "c:\\tmp\\x y",
+]
+
+
+@unittest.skipUnless(shutil.which("node"), "node が無い")
+class HomePathQuotingTest(unittest.TestCase):
+    """詠唱マクロの保存先（利用者が入力した文字列）を、シェルが解釈しない形で埋め込む."""
+
+    def _run_bash(self, expr: str, cwd: str, home: str) -> str:
+        script = f"base={expr}\nprintf '%s' \"$base\"\n"
+        env = {**os.environ, "HOME": home}
+        out = subprocess.run(["bash", "-c", script], cwd=cwd, env=env, capture_output=True, text=True, check=True)  # nosec B603 B607
+        return out.stdout
+
+    @unittest.skipUnless(HAVE_BASH, "bash が無い（Windows の bash は WSL のことがあるので使わない）")
+    def test_bash_keeps_input_literal(self):
+        exprs = home_path_exprs(HOSTILE_DIRS, "sh")
+        for raw, expr in zip(HOSTILE_DIRS, exprs, strict=True):
+            with self.subTest(raw=raw), tempfile.TemporaryDirectory() as tmp:
+                got = self._run_bash(expr, tmp, "/home/u")
+                want = raw.replace("\n", "")  # 改行などの制御文字は取り除く
+                self.assertEqual(got, want)
+                self.assertFalse(Path(tmp, "PWNED").exists(), f"コマンドが実行された: {expr}")
+
+    @unittest.skipUnless(HAVE_BASH, "bash が無い（Windows の bash は WSL のことがあるので使わない）")
+    def test_bash_tilde_is_home(self):
+        for raw, want in (
+            ("", "/home/u/devtools"),
+            ("~", "/home/u"),
+            ("~/dev tools", "/home/u/dev tools"),
+            ("~/it's", "/home/u/it's"),
+            ("/opt/~x", "/opt/~x"),
+        ):
+            with self.subTest(raw=raw), tempfile.TemporaryDirectory() as tmp:
+                (expr,) = home_path_exprs([raw], "sh")
+                self.assertEqual(self._run_bash(expr, tmp, "/home/u"), want)
+
+    def test_powershell_expression_shape(self):
+        """PowerShell 版は '…' の文字列（' と ‘ ’ ‚ ‛ は重ねる）で、$( や " がそのまま式にならない."""
+        exprs = home_path_exprs([*HOSTILE_DIRS, "~/x", "it\u2019s"], "ps")
+        for expr in exprs:
+            with self.subTest(expr=expr):
+                lit = expr.removeprefix("$HOME + ")
+                self.assertRegex(lit, r"^'(?:[^'\u2018\u2019\u201a\u201b]|(['\u2018\u2019\u201a\u201b])\1)*'$")
+        self.assertEqual(exprs[-2], "$HOME + '\\x'")
+        self.assertEqual(exprs[-1], "'it\u2019\u2019s'")
+
+    @unittest.skipUnless(shutil.which("pwsh"), "pwsh が無い")
+    def test_powershell_keeps_input_literal(self):
+        exprs = home_path_exprs(HOSTILE_DIRS, "ps")
+        for raw, expr in zip(HOSTILE_DIRS, exprs, strict=True):
+            with self.subTest(raw=raw), tempfile.TemporaryDirectory() as tmp:
+                script = f"$base = {expr}\n[Console]::Out.Write($base)\n"
+                out = subprocess.run(  # nosec B603 B607
+                    ["pwsh", "-NoProfile", "-NonInteractive", "-Command", script],
+                    cwd=tmp,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    check=True,
+                )
+                self.assertEqual(out.stdout, raw.replace("\n", "").replace("/", "\\"))
+                self.assertFalse(Path(tmp, "PWNED").exists(), f"コマンドが実行された: {expr}")
+
+    def test_macro_uses_expression_without_extra_quotes(self):
+        text = armory_text()
+        self.assertIn('$base = ${homePath(dir,"ps")}\n', text)
+        self.assertIn('base=${homePath(dir,"sh")}\n', text)
 
 
 if __name__ == "__main__":

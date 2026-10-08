@@ -484,17 +484,28 @@ function renderStatus(){
  drawSprite(hero,HERO,{k:"#0b0a20",d:acc?"#f4c45a":"#8a7a5a",w:"#ffd9b8",a:armor?armor.color:"#6b6599",b:"#3b3570",c:acc?acc.color:"#9a94c8"});
  document.getElementById("sets").innerHTML=SETS.map(([n],k)=>`<button data-set="${k}">${n}</button>`).join("");
 }
+/* 保存先の入力を、シェルが解釈しない文字列の式にして返す（入力は利用者が貼りつけた任意の文字列として扱う）。
+   bash: '…' で囲み、' は '\'' にする（$ ` \ " は '…' の中では解釈されない）。先頭の ~ だけ "$HOME" に置き換える。
+   PowerShell: '…' で囲み、' と、PowerShell が ' と同じに扱う ‘ ’ ‚ ‛ は 2 つ重ねる。先頭の ~ だけ $HOME に置き換える。
+   改行などの制御文字はコマンドの区切りになり得るので取り除く */
 function homePath(raw,kind){
- let p=(raw||"~/devtools").trim();
- if(kind==="ps"){p=p.replace(/\//g,"\\");if(p.startsWith("~"))p="$HOME"+p.slice(1);return p.replace(/"/g,"")}
- if(p.startsWith("~"))p="$HOME"+p.slice(1);return p.replace(/"/g,"")
+ let p=String(raw||"").replace(/[\u0000-\u001f\u007f]/g,"").trim()||"~/devtools";
+ let home=false;
+ if(p==="~"||p.startsWith("~/")||p.startsWith("~\\")){home=true;p=p.slice(1)}
+ if(kind==="ps"){
+  p=p.replace(/\//g,"\\");
+  const q=p?"'"+p.replace(/['\u2018\u2019\u201a\u201b]/g,c=>c+c)+"'":"";
+  return home?(q?"$HOME + "+q:"$HOME"):q;
+ }
+ const q=p?"'"+p.replace(/'/g,"'\\''")+"'":"";
+ return home?'"$HOME"'+q:q;
 }
 function macroText(){
  const ids=eqItems().map(i=>i.id);const dir=document.getElementById("dir").value;
  if(!ids.length)return null;
  if(os==="ps"){
   return `# devtools armory - equip macro (PowerShell)
-$base = "${homePath(dir,"ps")}"
+$base = ${homePath(dir,"ps")}
 $repos = @(${ids.map(r=>`"${r}"`).join(", ")})
 New-Item -ItemType Directory -Force -Path $base | Out-Null
 foreach ($r in $repos) {
@@ -508,7 +519,7 @@ foreach ($r in $repos) {
 Write-Host "done -> $base"`;
  }
  return `# devtools armory - equip macro (bash)
-base="${homePath(dir,"sh")}"
+base=${homePath(dir,"sh")}
 mkdir -p "$base"
 for r in ${ids.join(" ")}; do
   if [ -d "$base/$r/.git" ]; then
