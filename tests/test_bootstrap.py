@@ -375,6 +375,36 @@ class CheckPinsTest(unittest.TestCase):
         )
         self.assertIsNone(bootstrap.url_pin("PyYAML>=6"))
 
+    def test_url_pin_ssh_user_is_not_ref(self):
+        """git+ssh://git@host/… のユーザー名の @ を ref の区切りと取り違えない."""
+        self.assertEqual(
+            bootstrap.url_pin("devtools-common @ git+ssh://git@github.com/o/devtools-common.git"),
+            ("devtools-common", "git+ssh://git@github.com/o/devtools-common", ""),
+        )
+        self.assertEqual(
+            bootstrap.url_pin("devtools-common @ git+ssh://git@github.com/o/devtools-common.git@abc"),
+            ("devtools-common", "git+ssh://git@github.com/o/devtools-common", "abc"),
+        )
+        self.assertEqual(
+            bootstrap.url_pin("auto-review @ git+ssh://git@github.com/o/lab.git@def#subdirectory=auto-review"),
+            ("auto-review", "git+ssh://git@github.com/o/lab", "def"),
+        )
+        self.assertEqual(
+            bootstrap.url_pin("devtools-common @ git+https://user@github.com/o/devtools-common.git"),
+            ("devtools-common", "git+https://user@github.com/o/devtools-common", ""),
+        )
+        self.assertEqual(
+            bootstrap.url_pin("devtools-common @ git+https://github.com/o/devtools-common.git"),
+            ("devtools-common", "git+https://github.com/o/devtools-common", ""),
+        )
+
+    def test_ssh_and_https_unpinned_same_repo_reports_by_ref(self):
+        """ssh で ref なしのものは ref 空として扱われ、ユーザー名が ref として表示されない."""
+        self._pkg("tool-a", "tool-a", ["devtools-common @ git+ssh://git@github.com/o/devtools-common.git"])
+        repos = [bootstrap.Repo("tool-a", python=True)]
+        pins = bootstrap.collect_pins(self.tmp, repos)
+        self.assertEqual(list(pins["devtools-common"]), [("git+ssh://git@github.com/o/devtools-common", "")])
+
     def test_same_pins_are_ok(self):
         self._pkg("tool-a", "tool-a", [f"devtools-common @ {self.COMMON_URL}@aaa", "PyYAML>=6"])
         self._pkg("tool-b", "tool-b", [f"devtools-common[excel] @ {self.COMMON_URL}@aaa"])
@@ -493,3 +523,4 @@ class ReadmeNeighborCommonTest(unittest.TestCase):
         self.assertNotIn("同じフォルダに clone した devtools-common は使いません", text)
         self.assertIn("scripts/install_deps.py", text)
         self.assertIn("隣のフォルダに devtools-common があればそれを editable で入れて", text)
+

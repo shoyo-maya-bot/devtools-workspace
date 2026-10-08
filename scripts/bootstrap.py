@@ -402,7 +402,15 @@ def url_pin(dep: str) -> tuple[str, str, str] | None:
         return None
     url = m.group(2).split("#", 1)[0]
     base, ref = url, ""
-    if "@" in url.split("://", 1)[-1]:
+    # `scheme://[user@]host/path[@ref]`。ユーザー名の @（git+ssh://git@github.com/…）は host の前、
+    # ref の @ はパスの後ろにある。パス（最初の / より後ろ）にある @ だけを ref の区切りとみなす
+    scheme, sep, rest = url.partition("://")
+    if sep:
+        authority, slash, path = rest.partition("/")
+        if slash and "@" in path:
+            path, ref = path.rsplit("@", 1)
+        base = f"{scheme}://{authority}{slash}{path}"
+    elif "@" in url:
         base, ref = url.rsplit("@", 1)
     return m.group(1).replace("_", "-").lower(), base.removesuffix(".git").rstrip("/"), ref
 
