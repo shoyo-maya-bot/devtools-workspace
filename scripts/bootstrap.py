@@ -192,7 +192,9 @@ def _pinned_by_url(deps: list[str]) -> set[str]:
     return {_dep_name(d) for d in deps if re.match(r"^[\w.\-\[\], ]+@\s*\S", d.split(";", 1)[0].strip())}
 
 
-def install_plan(root: Path, repos: list[Repo], dev: bool = False, extras: str = "dev") -> list[list[str]]:
+def install_plan(
+    root: Path, repos: list[Repo], dev: bool = False, extras: str = "dev", notes: list[str] | None = None
+) -> list[list[str]]:
     """pip の引数リストを返す.
 
     既定（利用者向け）: ツールを通常の依存解決で入れる。各ツールが `devtools-common @ git+…@<SHA>` で固定した版を
@@ -203,6 +205,8 @@ def install_plan(root: Path, repos: list[Repo], dev: bool = False, extras: str =
 
     dev=True（開発者向け）: devtools-common をローカルの checkout から editable で入れ、ツールは --no-deps で入れて
     Git の固定依存をローカル版で置き換える。共有ライブラリとツールを同時に変更して試すとき用。
+
+    notes にリストを渡すと、利用者に知らせること（手元の checkout を使わないパッケージ）を足す（表示は呼び出し側）。
     """
     plan: list[list[str]] = []
     pkgs: list[tuple[Path, dict]] = [(d, _project(d)) for r in repos if r.python for d in r.package_dirs(root)]
@@ -215,9 +219,8 @@ def install_plan(root: Path, repos: list[Repo], dev: bool = False, extras: str =
         if len(pkgs) > 1:
             pinned.add(COMMON)  # ツールと一緒なら、devtools-common はツールが固定した版だけを入れる（従来どおり）
         chosen = [d for d, p in pkgs if str(p.get("name", d.name)).replace("_", "-").lower() not in pinned]
-        for d, p in pkgs:
-            if d not in chosen:
-                print(f"note   {p.get('name', d.name)}: ほかのツールが固定した版を入れる（手元の checkout は使わない）")
+        if notes is not None:
+            notes += [f"{p.get('name', d.name)}: ほかのツールが固定した版を入れる" for d, p in pkgs if d not in chosen]
         if chosen:
             args = ["install"]
             for d in chosen:
@@ -326,7 +329,11 @@ def cmd_install(root: Path, repos: list[Repo], venv_dir: Path | None, dry_run: b
         python = str(venv_dir / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python"))
     if dev:
         print("mode   開発者向け（--dev）: devtools-common はローカルの checkout を editable で使います")
-    for args in install_plan(root, repos, dev=dev):
+    notes: list[str] = []
+    plan = install_plan(root, repos, dev=dev, notes=notes)
+    for n in notes:
+        print(f"note   {n}（手元の checkout は使わない）")
+    for args in plan:
         cmd = [python, "-m", "pip", *args]
         print("$", " ".join(cmd))
         if not dry_run:

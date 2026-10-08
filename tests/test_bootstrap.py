@@ -165,12 +165,11 @@ class InstallPlanTest(unittest.TestCase):
             bootstrap.Repo("lab", python=True, packages="auto-review, mcp-server"),
             bootstrap.Repo("platform", python=True),
         ]
-        out = io.StringIO()
-        with contextlib.redirect_stdout(out):
-            plan = bootstrap.install_plan(self.tmp, repos)
+        notes: list[str] = []
+        plan = bootstrap.install_plan(self.tmp, repos, notes=notes)
         want = ["tool-a", "lab/mcp-server", "platform"]
         self.assertEqual(plan, [["install", *[a for w in want for a in ("-e", str(self.tmp / w))]]])
-        self.assertIn("auto-review: ほかのツールが固定した版を入れる", out.getvalue())
+        self.assertTrue(any(n.startswith("auto-review: ほかのツールが固定した版を入れる") for n in notes), notes)
 
         dev = bootstrap.install_plan(self.tmp, repos, dev=True)
         flat = [" ".join(p) for p in dev]
