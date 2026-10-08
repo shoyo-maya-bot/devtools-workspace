@@ -18,12 +18,16 @@
     list      ツール一覧（Markdown の表）
     check-python  取得済みの Python パッケージの requires-python と、setup が求める Python の版（3.12 以上）が
               合っているかを確かめる（合っていなければ 1）
+    check-pins    取得済みの Python パッケージが URL（git+…@<SHA>）で固定した devtools-common などの版が、
+              ツールどうしで食い違っていないかを確かめる（食い違えば、どのツールの固定をそろえるかを表示して 1）。
+              setup は一括インストールの前にこれを流す
 
 例:
     python scripts/bootstrap.py clone --org my-org
     python scripts/bootstrap.py install            # ../.venv に全ツールを入れる（devtools-common は各ツールの固定 SHA）
     python scripts/bootstrap.py install --dev      # 開発者向け: ローカルの devtools-common で置き換えて入れる
     python scripts/bootstrap.py status
+    python scripts/bootstrap.py check-pins     # 各ツールの devtools-common の固定 SHA がそろっているか
     python scripts/bootstrap.py --only devtools-common,doc-to-markdown clone   # 一部のリポジトリだけ扱う
 """
 
@@ -70,6 +74,35 @@ class Repo:
         return [d for d in dirs if (d / "pyproject.toml").is_file()]
 
 
+class ManifestError(ValueError):
+    """マニフェスト（repos.yaml）を読めない（このスクリプトが読むサブセットの外の書き方・誤り）."""
+
+
+_FIELDS = set(Repo.__dataclass_fields__)
+
+
+def _strip_comment(raw: str) -> str:
+    """行末コメント（空白の後の `#`）を除く。値が引用符（' / "）で始まるときは、閉じる引用符までを値として残す.
+
+    YAML と同じく、引用符が意味を持つのは値の先頭だけ（`a 'b' # c` の `'` はただの文字）。
+    引用符が閉じていない・閉じた後にコメント以外が続く行は誤り（ValueError）。
+    """
+    m = re.match(r"^(\s*(?:-\s+)?\w+:\s*)(['\"])", raw)
+    if m:
+        quote = m.group(2)
+        end = raw.find(quote, m.end())
+        if end < 0:
+            raise ValueError(f"引用符 {quote} が閉じていません")
+        rest = raw[end + 1 :]
+        if rest.strip() and not re.match(r"^\s+#", rest):
+            raise ValueError(f"閉じた引用符の後に余計な文字があります: {rest.strip()}")
+        return raw[: end + 1]
+    if raw.lstrip().startswith("#"):
+        return ""
+    m = re.search(r"\s#", raw)
+    return (raw[: m.start()] if m else raw).rstrip()
+
+
 def _scalar(v: str) -> str | bool:
     v = v.strip()
     if v in ("true", "false"):
@@ -80,24 +113,57 @@ def _scalar(v: str) -> str | bool:
 
 
 def load_manifest(path: Path = MANIFEST) -> tuple[dict[str, str], list[Repo]]:
+    """repos.yaml の単純なサブセット（`key: value`、`repos:` の下の `- name: …` と字下げした `key: value`）を読む.
+
+    行末の ` # コメント` は除く（引用符の中の `#` は残す）。読めない行・知らない項目・name の無い項目・
+    重複した name は、黙って読み飛ばさず ManifestError（ファイル名と行番号付き）にする。
+    """
     top: dict[str, str] = {}
-    repos: list[Repo] = []
+    repos: list[dict] = []
     cur: dict | None = None
-    for raw in path.read_text(encoding="utf-8").splitlines():
-        line = raw.split(" #", 1)[0].rstrip() if not raw.lstrip().startswith("#") else ""
-        if not line.strip():
-            continue
-        if m := re.match(r"^(\w+):\s*(.*)$", line):
-            if m.group(2):
-                top[m.group(1)] = str(_scalar(m.group(2)))
-            continue
-        if m := re.match(r"^\s+-\s+(\w+):\s*(.*)$", line):
-            cur = {m.group(1): _scalar(m.group(2))}
-            repos.append(cur)  # type: ignore[arg-type]
-            continue
-        if (m := re.match(r"^\s+(\w+):\s*(.*)$", line)) and cur is not None:
-            cur[m.group(1)] = _scalar(m.group(2))
-    return top, [Repo(**r) for r in repos]  # type: ignore[arg-type]
+    for no, raw in enumerate(path.read_text(encoding="utf-8-sig").splitlines(), 1):
+
+        def bad(msg: str, no: int = no) -> ManifestError:
+            return ManifestError(f"{path}:{no}: {msg}")
+
+        try:
+            line = _strip_comment(raw)
+            if not line.strip():
+                continue
+            if m := re.match(r"^(\w+):\s*(.*)$", line):
+                if m.group(2):
+                    top[m.group(1)] = str(_scalar(m.group(2)))
+                cur = None
+                continue
+            if m := re.match(r"^\s+-\s+(\w+):\s*(.*)$", line):
+                cur = {m.group(1): _scalar(m.group(2)), "_line": no}
+                repos.append(cur)
+            elif m := re.match(r"^\s+(\w+):\s*(.*)$", line):
+                if cur is None:
+                    raise ValueError("リポジトリの項目（`  - name: …`）の外にあります")
+                if m.group(1) in cur:
+                    raise ValueError(f"{m.group(1)} が 2 回あります")
+                cur[m.group(1)] = _scalar(m.group(2))
+            else:
+                raise ValueError(f"読めない行です: {raw.strip()}")
+            if m.group(1) not in _FIELDS:
+                raise ValueError(f"知らない項目です: {m.group(1)}（使えるのは {', '.join(sorted(_FIELDS))}）")
+        except ValueError as e:
+            raise bad(str(e)) from None
+    result: list[Repo] = []
+    seen: set[str] = set()
+    for r in repos:
+        no = r.pop("_line")
+        name = r.get("name")
+        if not isinstance(name, str) or not name:
+            raise ManifestError(f"{path}:{no}: name がありません")
+        if name in seen:
+            raise ManifestError(f"{path}:{no}: {name} が 2 回あります")
+        if not isinstance(r.get("python", False), bool):
+            raise ManifestError(f"{path}:{no}: python は true / false で書きます")
+        seen.add(name)
+        result.append(Repo(**r))
+    return top, result
 
 
 # ---------------------------------------------------------------------------
@@ -320,6 +386,120 @@ def cmd_check_python(root: Path, repos: list[Repo]) -> int:
     return 1 if problems else 0
 
 
+# ---------------------------------------------------------------------------
+# URL で固定した依存（devtools-common @ git+…@<SHA> など）がツールどうしでそろっているか
+# ---------------------------------------------------------------------------
+_URL_PIN = re.compile(r"^\s*([\w.\-]+)\s*(?:\[[^\]]*\])?\s*@\s*(\S+)")
+
+
+def url_pin(dep: str) -> tuple[str, str, str] | None:
+    """`name[extra] @ git+https://host/org/repo.git@<ref>#subdirectory=x ; marker` → (name, リポジトリの URL, ref).
+
+    URL で固定していない依存は None。ref の無い URL は ref を空にする.
+    """
+    m = _URL_PIN.match(dep.split(";", 1)[0])
+    if not m:
+        return None
+    url = m.group(2).split("#", 1)[0]
+    base, ref = url, ""
+    if "@" in url.split("://", 1)[-1]:
+        base, ref = url.rsplit("@", 1)
+    return m.group(1).replace("_", "-").lower(), base.removesuffix(".git").rstrip("/"), ref
+
+
+def collect_pins(root: Path, repos: list[Repo]) -> dict[str, dict[tuple[str, str], list[str]]]:
+    """{依存の名前: {(URL, ref): [固定しているパッケージの表示名]}}.
+
+    見るのは `dependencies` だけ（setup の一括インストールで pip が解決するもの）。optional-dependencies は
+    setup では入れないので、食い違っていても一括インストールは止まらない（各ツールの CI が見る）.
+    """
+    pkgs = [(r, d, _project(d)) for r in repos if r.python for d in r.package_dirs(root)]
+    # ほかのツールが URL で固定しているパッケージ（review-platform → auto-review）は、手元の checkout ではなく
+    # 固定した版が入る（install_plan と同じ）。手元の checkout の固定は使われないので見ない
+    pinned_elsewhere: set[str] = set()
+    for _, _, p in pkgs:
+        pinned_elsewhere |= _pinned_by_url(p.get("dependencies", []))
+    pins: dict[str, dict[tuple[str, str], list[str]]] = {}
+    for r, d, project in pkgs:
+        if str(project.get("name", d.name)).replace("_", "-").lower() in pinned_elsewhere:
+            continue
+        rel = d.relative_to(root / r.name).as_posix()
+        label = r.name if rel == "." else f"{r.name}/{rel}"
+        for dep in project.get("dependencies", []):
+            pin = url_pin(dep)
+            if pin is None:
+                continue
+            users = pins.setdefault(pin[0], {}).setdefault(pin[1:], [])
+            if label not in users:
+                users.append(label)
+    return pins
+
+
+def check_pins(root: Path, repos: list[Repo], names: tuple[str, ...] | None = None) -> list[str]:
+    """URL で固定した依存の版がパッケージどうしで食い違っていれば、その説明（無ければ空）.
+
+    names を渡すと、その依存だけを見る（既定はすべて。devtools-common のほか、auto-review・doc-to-markdown など）。
+    食い違いは pip の一括インストールで衝突として止まるので、その前に「どのツールの固定をどの SHA にそろえるか」を示す。
+    そろえる先は、最も多くのツールが使っている固定（同数なら、表示の先頭）.
+    """
+    problems: list[str] = []
+    for dep, by_pin in sorted(collect_pins(root, repos).items()):
+        if names is not None and dep not in names:
+            continue
+        if len(by_pin) < 2:
+            continue
+        ranked = sorted(by_pin.items(), key=lambda kv: -len(kv[1]))
+        (url, ref), majority = ranked[0]
+        lines = [f"{dep} の固定がツールごとに違います:"]
+        for (u, r), users in ranked:
+            lines.append(f"    {r or '(ref なし)'} {u}  ← {', '.join(users)}")
+        to_fix = [u for _, users in ranked[1:] for u in users]
+        lines.append(
+            f"  そろえる: {', '.join(to_fix)} の pyproject.toml の {dep} の固定を {ref or url} にする"
+            f"（{', '.join(majority)} と同じ。新しい版にそろえるなら、ほかのツールを上げる）"
+        )
+        problems.append("\n".join(lines))
+    return problems
+
+
+def cmd_check_pins(root: Path, repos: list[Repo]) -> int:
+    problems = check_pins(root, repos)
+    for p in problems:
+        print(f"NG     {p}", file=sys.stderr)
+    if problems:
+        print(
+            "       食い違ったままでは一括インストールで pip が衝突として止まります。"
+            "固定をそろえてから setup をやり直してください",
+            file=sys.stderr,
+        )
+        return 1
+    pins = collect_pins(root, repos)
+    common = next(iter(pins.get(COMMON, {})), None)
+    detail = f"（{COMMON} は {common[1]}）" if common else ""
+    print(f"ok     URL で固定した依存 {len(pins)} 個の版がツールどうしでそろっています{detail}")
+    return 0
+
+
+def pip_failure_hint(code: object, dev: bool = False) -> str:
+    """pip が失敗したときの案内（トレースバックの代わりに出す）."""
+    lines = [
+        f"\nインストールに失敗しました（pip の終了コード: {code}）。"
+        "上の pip の表示の最後のエラーを確かめてください。よくある原因:",
+        "  - ネットワーク・社内プロキシ: PyPI と GitHub（git+https の固定依存）に届くか。"
+        "プロキシが要るなら HTTPS_PROXY を設定する",
+        "  - 固定の食い違い: `python scripts/bootstrap.py check-pins` で、"
+        "ツールどうしの devtools-common などの固定 SHA を確かめる"
+        "（ResolutionImpossible・conflicting dependencies と出たとき）",
+        "  - Python の版: `python scripts/bootstrap.py check-python`",
+        "  - 一時的な失敗なら、もう一度 setup を実行する（取得済みのリポジトリはそのまま使う）",
+    ]
+    if not dev:
+        lines.append(
+            "  - devtools-common を変更しながら試しているなら、開発者向けの --dev（ローカルの checkout を使う）"
+        )
+    return "\n".join(lines)
+
+
 def cmd_install(root: Path, repos: list[Repo], venv_dir: Path | None, dry_run: bool, dev: bool = False) -> int:
     python = sys.executable
     if venv_dir is not None:
@@ -336,8 +516,14 @@ def cmd_install(root: Path, repos: list[Repo], venv_dir: Path | None, dry_run: b
     for args in plan:
         cmd = [python, "-m", "pip", *args]
         print("$", " ".join(cmd))
-        if not dry_run:
+        if dry_run:
+            continue
+        try:
             subprocess.run(cmd, check=True)
+        except (subprocess.CalledProcessError, OSError) as e:
+            code = e.returncode if isinstance(e, subprocess.CalledProcessError) else e
+            print(pip_failure_hint(code, dev=dev), file=sys.stderr)
+            return 1
     if venv_dir is not None and not dry_run:
         activate = venv_dir / ("Scripts\\activate" if sys.platform == "win32" else "bin/activate")
         print(f"\n完了。有効化: {activate}")
@@ -399,9 +585,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     sub.add_parser("list")
     sub.add_parser("check-python", help="requires-python と setup が求める Python の版が合っているか")
+    sub.add_parser("check-pins", help="各ツールが URL で固定した devtools-common などの版がそろっているか")
     args = ap.parse_args(argv)
 
-    top, repos = load_manifest(args.manifest)
+    try:
+        top, repos = load_manifest(args.manifest)
+    except ManifestError as e:
+        print(f"マニフェストを読めません: {e}", file=sys.stderr)
+        return 2
     repos = select_repos(repos, args.only)
     root = args.root.resolve()
     if args.cmd == "clone":
@@ -415,6 +606,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_install(root, repos, venv_dir, args.dry_run, dev=args.dev)
     if args.cmd == "check-python":
         return cmd_check_python(root, repos)
+    if args.cmd == "check-pins":
+        return cmd_check_pins(root, repos)
     return cmd_list(repos)
 
 

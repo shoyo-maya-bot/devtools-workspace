@@ -36,6 +36,11 @@ fi
 BS=("$PY" scripts/bootstrap.py ${MANIFEST:+--manifest "$MANIFEST"} ${ONLY:+--only "$ONLY"})
 "${BS[@]}" clone ${ORG:+--org "$ORG"}
 "${BS[@]}" pull || echo "最新にできなかったリポジトリがあります（上の表示を確かめてください）。セットアップは続けます。" >&2
+# 一括インストールの前に、各ツールが固定した devtools-common などの版がそろっているかを確かめる
+# （食い違うと pip が衝突で止まる。どのツールの固定をそろえるかを表示して止める）。--dev はローカルの checkout で置き換えるので見ない
+if [ -z "$DEV" ]; then
+  "${BS[@]}" check-pins || { echo "固定がそろっていないため、インストールを止めました（上の表示を確かめてください）" >&2; exit 1; }
+fi
 "${BS[@]}" install ${DEV:+"$DEV"}
 if [ -x ../.venv/bin/doc2md ]; then ../.venv/bin/doc2md --check-env; fi
 echo
