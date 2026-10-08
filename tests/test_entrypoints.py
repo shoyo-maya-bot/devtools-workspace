@@ -178,5 +178,32 @@ class WorkflowReproducibilityTest(unittest.TestCase):
                 self.assertRegex(ci, rf"\n      {re.escape(name)}:\n(        .*\n)*?        {re.escape(default)}\n")
 
 
+class ReleaseBuildPinTest(unittest.TestCase):
+    """python-release.yml の build は build・build backend の版を固定し、呼び出し側の constraints.txt も使う."""
+
+    def setUp(self):
+        self.text = (ROOT / ".github" / "workflows" / "python-release.yml").read_text(encoding="utf-8")
+
+    def test_build_backend_is_pinned_via_pip_constraint(self):
+        self.assertIn("PIP_CONSTRAINT=", self.text)
+        self.assertIn('>> "$GITHUB_ENV"', self.text)
+        for pin in ("build==", "setuptools==", "wheel==", "packaging==", "pyproject_hooks=="):
+            with self.subTest(pin=pin):
+                self.assertRegex(self.text, rf"(?m)^\s+{re.escape(pin)}\d+(\.\d+)*$")
+
+    def test_uses_caller_constraints(self):
+        self.assertIn("if [ -f constraints.txt ]", self.text)
+
+    def test_checks_generator_of_built_wheel(self):
+        m = re.search(r"(?m)^\s+setuptools==([\d.]+)$", self.text)
+        self.assertIsNotNone(m)
+        self.assertIn(f"setuptools ({m.group(1)})", self.text)
+
+    def test_build_is_not_installed_unpinned_before_constraints(self):
+        steps = self.text.split("- name: Pin build tools and build backend", 1)
+        self.assertEqual(len(steps), 2)
+        self.assertNotIn("pip install", steps[0])
+
+
 if __name__ == "__main__":
     unittest.main()
