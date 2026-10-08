@@ -1,6 +1,6 @@
 """必要な Python の版の確認が 1 か所（scripts/python_version.py）にまとまっていて、入口がすべてそれを使うことを確かめる.
 
-採点で見つかった問題: install-prereqs.ps1 は py があるだけで「OK」にし、setup.sh は版を確かめずに python3 を呼んでいた。
+以前の問題: install-prereqs.ps1 は py があるだけで「OK」にし、setup.sh は版を確かめずに python3 を呼んでいた。
 bootstrap.py は先頭で tomllib（3.11+）を import するため、3.10 以下（macOS 標準の 3.9）では
 トレースバックで止まっていた。
 第 2 回: 最低版は各ツールの requires-python の下限（最も高いもの = 3.12）と同じにする（RequiresPythonTest）。
