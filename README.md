@@ -105,10 +105,18 @@ VS Code で `devtools.code-workspace` を開くと全リポジトリを 1 画面
 
 ### パイプライン例（doc2md → fieldcheck）
 
+前提: ワークスペースの `setup`（`setup.cmd` / `./setup.sh`）を済ませ、兄弟フォルダの `../.venv` に doc-to-markdown と office-review が入っていること
+（入力の見本も兄弟フォルダの `../doc-to-markdown/samples`・`../office-review/fieldcheck/samples` を使います）。
+スクリプトは `../.venv` の `doc2md`・`fieldcheck` を直接使うので、仮想環境の有効化は要りません（無ければ PATH のものを使います）。
+どちらも見つからなければ、何を入れればよいかを表示して終了コード 2 で止まります。別の仮想環境を使うときは `VENV=<フォルダ>`（PowerShell は `-Venv <フォルダ>`）。
+
 ```bash
+./setup.sh                                       # 1 回だけ（Windows は setup.cmd）
 ./examples/expense-pipeline.sh                   # macOS / Linux
 .\examples\expense-pipeline.ps1                  # Windows PowerShell
 ```
+
+見本の入力にはわざと不整合を入れてあるので、終了コードは 1（指摘あり）です。統合 CI（`ci.yml` の setup-sh・windows）でも setup のあとに 1 回動かしています。
 
 ### CLI の共通の約束
 
@@ -161,12 +169,15 @@ Python のパッケージがサブフォルダにあるリポジトリ（agent-l
 | `install-prereqs.cmd` が動くか | `-Check`（足りないものがあれば終了コード 1 になるのは正常。2 以上なら失敗）と `-DryRun` |
 | `setup.cmd` で全 Python ツールを取得・インストールできるか | `setup.cmd -Manifest .github\ci-repos.yaml` を 2 回（2 回目は取得済みのものを最新にする流れ）。そのあと各 CLI の `--help`、全パッケージの import、`bootstrap.py check-python`・`check-pins`（setup の中でも check-pins を流す） |
 | `setup.sh` で取得・インストールできるか（macOS・Linux） | `setup-sh` ジョブ（ubuntu-latest と macos-latest）で同じことをし、取り出した版が `ci-repos.yaml` の SHA と同じかも確かめる |
+| パイプライン例が動くか | setup のあと `examples/expense-pipeline.sh`（setup-sh）・`expense-pipeline.ps1`（windows）を 1 回流し、終了コード 1（見本の不整合を指摘）とレポートができることを確かめる |
 | 古い Python で分かりやすく止まるか | 単体テスト（`tests/test_python_version.py`。3.9 のふりをして `bootstrap.py` と `setup.sh` を動かす） |
 
 統合のジョブが取り出す他のリポジトリ（repos.yaml の `python: true` の全リポジトリ。テストで確かめる）は、[.github/ci-repos.yaml](.github/ci-repos.yaml) の `ref:` で **コミット SHA に固定** しています。
 他のリポジトリの main が変わってもこのリポジトリの CI は変わらず、同じ結果を再現できます。上げるときは `ci-repos.yaml` の SHA を書き換えて PR を出します。
 CI で入れるツール（ruff・bandit・pip-audit・build）も版を固定しています（`ci.yml`・`python-ci.yml`・`python-release.yml` の先頭の `env` など）。
-`python-release.yml` は build と build backend（setuptools・wheel など）の版を `PIP_CONSTRAINT` で固定し（呼び出し側に `constraints.txt` があればそれも使う）、wheel が固定した setuptools で作られたことを確かめます。
+`python-release.yml` は、公開の前に `python-ci.yml` と同じ lint・test（ubuntu の複数 Python と Windows）をタグのコミットで流し、すべて通ったときだけビルドして Release を作ります
+（ジョブの中身が `python-ci.yml` と同じことは `tests/test_workflows.py` で確かめる。CI で `with:` を渡しているリポジトリは、リリースの呼び出しにも同じ `with:` を渡す）。
+build と build backend（setuptools・wheel など）の版を `PIP_CONSTRAINT` で固定し（呼び出し側に `constraints.txt` があればそれも使う）、wheel が固定した setuptools で作られたことを確かめます。
 
 ### 共通の再利用ワークフロー（python-ci.yml）
 
@@ -181,7 +192,9 @@ jobs:
 ```
 
 - `secrets: inherit` は使いません（呼び出し側の全シークレットが渡るため）。`DEPS_TOKEN` だけを名前で渡します
-- `DEPS_TOKEN` は依存を入れる手順の環境変数だけで使い、`~/.gitconfig` には書きません。bandit・pip-audit はトークンの無い手順で入れます
+- `DEPS_TOKEN` は依存を入れる手順の **git clone だけ** で使い、`~/.gitconfig` には書きません。`pyproject.toml`・`constraints.txt` にある github.com の git 依存をトークン付きで手元（`RUNNER_TEMP`）に写してからトークンを消し、
+  `pip install` には git の `insteadOf`（トークンなし）でその写しを読ませます（pip が第三者の sdist をビルドするとき、そのコードからトークンが読めないように）。
+  写すのは両ファイルに書いた依存だけなので、非公開の間接依存があるときは `constraints.txt`（deps-lock で作る）に入っていることを確かめてください。bandit・pip-audit はトークンの無い手順で入れます
 - `with:` の値（`extra-apt-packages`・`source-dir` など）は `run:` に直接埋め込まず、手順の `env:` で渡します（値でコマンドを注入されないため）。`extra-apt-packages` はパッケージ名の形のものだけを受け付けます
 - `run-windows`（既定 `true`）で Windows（windows-latest、`windows-python-version` 既定 3.12）でもテストを流します
 - リポジトリに `constraints.txt` があれば、`pip install` に `-c constraints.txt` を付けます
