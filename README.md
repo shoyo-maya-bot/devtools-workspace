@@ -46,11 +46,13 @@
 MCP などの追加設定は不要です。**使うリポジトリを 1 つ clone するだけ** で使えます。
 
 0. まだツールが入っていなければ、Windows では `install-prereqs.cmd` をダブルクリック（Git・Python 3.12・Corretto 17・Node.js・VS Code・Rancher Desktop を winget で入れる。入っているものは飛ばす）
+   - Python は **3.11 以上** が要ります。`py` や `python` があっても古い版なら「なし」と表示し、3.12 を追加で入れます。
+     必要な版の判定は `scripts/python_version.py` の 1 か所にあり、`setup.cmd`・`setup.sh`・`bootstrap.py` も同じものを使います（古い Python では理由を表示して止まります）
    - `install-prereqs.cmd -Check` で入っているかだけを調べられる（Java は 17 以上か、WSL2 は実際に動くかまで見る）
    - `install-prereqs.cmd -DryRun` で、何を入れるかを表示するだけにできる（確認を出さず、何も変えない）
    - 別の版の Java（8 など）が入っていても消さずに 17 を追加する。WSL2 を有効にしたときは再起動が要る
    - Rancher Desktop 1.23.1 / 1.24.0 の不具合（docker が `timed out dialing Hyper-V socket` になる）の回避策も置く（[rancher-desktop#10780](https://github.com/rancher-sandbox/rancher-desktop/issues/10780)）
-1. 使いたいリポジトリを clone する（Python のツールは `devtools-common` も同じフォルダに clone しておくと、GitHub の認証なしでセットアップできます）
+1. 使いたいリポジトリを clone する（Python のツールは、各ツールが `pyproject.toml` でコミット SHA を固定した devtools-common を、セットアップのときに GitHub から取ってきます。同じフォルダに clone した devtools-common は使いません。ローカルの devtools-common で試したいときは開発者向けの `--dev` を使います）
 2. **Windows**: `setup.cmd` をダブルクリック ／ **macOS・Linux**: `./setup.sh`
 3. VS Code でそのフォルダを開き、Copilot Chat で `/` と入力 → プロンプトを選ぶ
 
@@ -129,6 +131,7 @@ code devtools.code-workspace                         # VS Code で全リポを 1
 あとで既定の `install` をやり直せば、固定した版に戻ります。
 
 `clone` / `pull` は既定ブランチを取り出します。repos.yaml の項目に `ref:`（ブランチ・タグ・コミット SHA）を書くと、そのリポジトリはその ref を取り出します。
+別のマニフェストを使うときは `bootstrap.py --manifest <ファイル>`（`setup.sh --manifest`・`setup.cmd -Manifest`）を渡します。
 新しいツールの追加手順は [docs/NEW_TOOL.md](docs/NEW_TOOL.md) を参照してください。
 
 ## CI（Windows でも入口を動かして確かめる）
@@ -141,14 +144,37 @@ code devtools.code-workspace                         # VS Code で全リポを 1
 | 単体テストが Windows でも通るか | `python -m unittest discover -s tests` |
 | PowerShell のスクリプトに誤りがないか | PSScriptAnalyzer（Error と Warning。色付き表示に使っている `Write-Host` の警告だけは対象外） |
 | `install-prereqs.cmd` が動くか | `-Check`（足りないものがあれば終了コード 1 になるのは正常。2 以上なら失敗）と `-DryRun` |
-| `setup.cmd` で取得・インストールできるか | `setup.cmd -Only devtools-common,doc-to-markdown` を 2 回（2 回目は取得済みのものを最新にする流れ）。そのあと `doc2md --help`・`figspec --help` と `import devtools_common` |
+| `setup.cmd` で取得・インストールできるか | `setup.cmd -Manifest .github\ci-repos.yaml -Only devtools-common,doc-to-markdown` を 2 回（2 回目は取得済みのものを最新にする流れ）。そのあと `doc2md --help`・`figspec --help` と `import devtools_common` |
+| `setup.sh` で取得・インストールできるか（macOS・Linux） | `setup-sh` ジョブ（ubuntu-latest と macos-latest）で同じことをし、取り出した版が `ci-repos.yaml` の SHA と同じかも確かめる |
+| 古い Python で分かりやすく止まるか | 単体テスト（`tests/test_python_version.py`。3.9 のふりをして `bootstrap.py` と `setup.sh` を動かす） |
+
+統合のジョブが取り出す他のリポジトリ（devtools-common・doc-to-markdown）は、[.github/ci-repos.yaml](.github/ci-repos.yaml) の `ref:` で **コミット SHA に固定** しています。
+他のリポジトリの main が変わってもこのリポジトリの CI は変わらず、同じ結果を再現できます。上げるときは `ci-repos.yaml` の SHA を書き換えて PR を出します。
+CI で入れるツール（ruff・bandit・pip-audit・build）も版を固定しています（`ci.yml`・`python-ci.yml`・`python-release.yml` の先頭の `env` など）。
+
+### 共通の再利用ワークフロー（python-ci.yml）
+
+devtools-common と doc-to-markdown は `.github/workflows/python-ci.yml` を SHA で固定して呼びます（lint・ubuntu と Windows のテスト・bandit・pip-audit）。
+
+```yaml
+jobs:
+  ci:
+    uses: shoyo-maya-bot/devtools-workspace/.github/workflows/python-ci.yml@<コミット SHA>
+    secrets:
+      DEPS_TOKEN: ${{ secrets.DEPS_TOKEN }}   # 非公開の依存があるときだけ
+```
+
+- `secrets: inherit` は使いません（呼び出し側の全シークレットが渡るため）。`DEPS_TOKEN` だけを名前で渡します
+- `DEPS_TOKEN` は依存を入れる手順の環境変数だけで使い、`~/.gitconfig` には書きません。bandit・pip-audit はトークンの無い手順で入れます
+- `run-windows`（既定 `true`）で Windows（windows-latest、`windows-python-version` 既定 3.12）でもテストを流します
+- リポジトリに `constraints.txt` があれば、`pip install` に `-c constraints.txt` を付けます
 
 `setup.cmd`・`install-prereqs.cmd` は、環境変数 `CI`（GitHub Actions では自動で入る）か `DEVTOOLS_NO_PAUSE` があれば最後の `pause` をせず、PowerShell の終了コードをそのまま返します。ダブルクリックしたときの動きは変わりません。
 CI で使う Actions はコミット SHA で固定しています（横にバージョンをコメントで書いています）。
 checkout は `persist-credentials: false` にして、認証情報をランナーに残しません。どちらも単体テストで確かめています。
 `setup.cmd` は 3.11 以上の Python を探して使います。日本語の出力で止まらないよう、Python の入出力を UTF-8 にしています。
 
-確かめていないこと: winget で実際にインストールすること（ランナーにはすでに入っているものが多く、Rancher Desktop・WSL2 は再起動や仮想化が要るため）、日本語版 Windows（cp932）の画面での表示、全リポジトリの取得。
+確かめていないこと: winget で実際にインストールすること（ランナーにはすでに入っているものが多く、Rancher Desktop・WSL2 は再起動や仮想化が要るため）、日本語版 Windows（cp932）の画面での表示、全リポジトリの取得、各リポジトリの main の最新どうしの組み合わせ（CI は `ci-repos.yaml` の SHA で確かめる）。
 
 ## 初期設定チェックリスト（組織に導入するとき）
 

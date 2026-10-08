@@ -34,6 +34,20 @@ class ManifestTest(unittest.TestCase):
         self.assertTrue(tools)
         self.assertTrue(all(r.cli and r.python for r in tools))
 
+    def test_ci_manifest_pins_shas_and_matches_repos_yaml(self):
+        """統合 CI が取り出す版（.github/ci-repos.yaml）は SHA で固定し、項目は repos.yaml と同じにする."""
+        top, repos = bootstrap.load_manifest()
+        ci_top, ci_repos = bootstrap.load_manifest(ROOT / ".github" / "ci-repos.yaml")
+        self.assertEqual((ci_top["org"], ci_top["host"]), (top["org"], top["host"]))
+        by_name = {r.name: r for r in repos}
+        self.assertTrue(ci_repos)
+        for r in ci_repos:
+            with self.subTest(repo=r.name):
+                self.assertIn(r.name, by_name)
+                m = by_name[r.name]
+                self.assertEqual((r.role, r.python, r.cli), (m.role, m.python, m.cli))
+                self.assertRegex(r.ref, r"^[0-9a-f]{40}$", "ref はコミット SHA（40 桁）で固定する")
+
     def test_code_workspace_lists_all_repos(self):
         text = (ROOT / "devtools.code-workspace").read_text(encoding="utf-8")
         for r in bootstrap.load_manifest()[1]:

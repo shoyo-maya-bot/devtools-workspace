@@ -19,6 +19,12 @@ def armory_text() -> str:
     return ARMORY.read_text(encoding="utf-8")
 
 
+def item_blocks() -> dict[str, str]:
+    """ITEMS の 1 件ごとの JavaScript のテキスト（id → テキスト）."""
+    blocks = re.split(r'^\{id:"', armory_text(), flags=re.M)[1:]
+    return {b.split('"', 1)[0]: b for b in blocks}
+
+
 class ArmoryTest(unittest.TestCase):
     def test_items_match_manifest(self):
         top, repos = bootstrap.load_manifest()
@@ -35,6 +41,25 @@ class ArmoryTest(unittest.TestCase):
         m = re.search(r'const ORG = "([^"]+)"', armory_text())
         self.assertIsNotNone(m)
         self.assertEqual(m.group(1), top["org"])
+
+    def test_cli_names_match_manifest(self):
+        """各道具の使い方に書いた CLI 名が repos.yaml の cli と同じか（手で写した使い方が古くなっていないか）."""
+        _, repos = bootstrap.load_manifest()
+        blocks = item_blocks()
+        for r in repos:
+            block = blocks[r.name]
+            commands = re.findall(r'\["[^"]*","([^"]*)"\]', block)
+            named = re.findall(r"CLI 名は ?([A-Za-z0-9_.-]+)", block)
+            with self.subTest(repo=r.name):
+                if r.cli:
+                    self.assertTrue(
+                        any(c == r.cli or c.startswith(r.cli + " ") for c in commands),
+                        f"{r.name}: 装備スキルに CLI `{r.cli}` のコマンドがありません",
+                    )
+                    wrong = [n for n in named if n != r.cli]
+                    self.assertEqual(wrong, [], f"{r.name}: CLI 名が repos.yaml の {r.cli} と違う")
+                else:
+                    self.assertEqual(named, [], f"{r.name}: repos.yaml に cli が無いのに CLI 名が書いてある")
 
     def test_every_item_has_skill(self):
         text = armory_text()

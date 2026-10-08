@@ -87,5 +87,63 @@ class WorkflowHardeningTest(unittest.TestCase):
             self.assertEqual(n, len(re.findall(r"persist-credentials:\s*false", text)), f.name)
 
 
+def code_lines(text: str) -> list[str]:
+    """YAML のコメント行を除いた行."""
+    return [ln for ln in text.splitlines() if not ln.lstrip().startswith("#")]
+
+
+class WorkflowReproducibilityTest(unittest.TestCase):
+    """CI の結果が他のリポジトリやツールの新しい版で変わらないこと、シークレットを広く渡さないこと."""
+
+    TOOLS = ("ruff", "bandit", "pip-audit", "build", "pip-tools", "uv")
+
+    def test_tool_versions_are_pinned(self):
+        for f in tracked(".github/workflows/*.yml"):
+            for line in code_lines(f.read_text(encoding="utf-8")):
+                m = re.search(r"pip install (.*)$", line)
+                if not m:
+                    continue
+                for tok in re.findall(r'"([^"]+)"|(\S+)', m.group(1)):
+                    spec = (tok[0] or tok[1]).split("#")[0]
+                    name = re.split(r"[=<>!~\[]", spec, maxsplit=1)[0].lower()
+                    if name in self.TOOLS:
+                        with self.subTest(file=f.name, spec=spec):
+                            self.assertRegex(spec, r"==(\d|\$\{)", f"{f.name}: {spec} の版を固定してください")
+
+    def test_integration_jobs_use_pinned_manifest(self):
+        text = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+        runs = [ln for ln in code_lines(text) if re.search(r"setup\.(cmd|sh)\b", ln) and "run:" in ln]
+        self.assertGreaterEqual(len(runs), 4)
+        for ln in runs:
+            self.assertRegex(ln, r"(-Manifest|--manifest) \.github[\\/]ci-repos\.yaml", ln)
+
+    def test_setup_sh_runs_in_ci(self):
+        text = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+        self.assertIn("./setup.sh --manifest", text)
+        self.assertIn("macos-latest", text)
+
+    def test_no_secrets_inherit(self):
+        # ワークフロー本体と、使い方の例（コメント・Markdown のコードブロック）の両方で、行として書いていないこと
+        for f in tracked(".github/workflows/*.yml", "docs/*.md", "README.md"):
+            for ln in f.read_text(encoding="utf-8").splitlines():
+                if ln.strip().lstrip("#").strip() == "secrets: inherit":
+                    self.fail(f"{f.name}: secrets: inherit を使わず、必要なシークレットだけを名前で渡す")
+        ci = (ROOT / ".github" / "workflows" / "python-ci.yml").read_text(encoding="utf-8")
+        self.assertIn("DEPS_TOKEN: ${{ secrets.DEPS_TOKEN }}", ci)
+
+    def test_token_is_not_written_to_git_config(self):
+        for f in tracked(".github/workflows/*.yml"):
+            text = "\n".join(code_lines(f.read_text(encoding="utf-8")))
+            self.assertNotRegex(text, r"git config --global[^\n]*(TOKEN|token)", f.name)
+            # DEPS_TOKEN はジョブ全体の env に置かず、使う手順の env にだけ置く
+            self.assertNotRegex(text, r"(?m)^    env:\n(      \w+: .*\n)*      DEPS_TOKEN:", f.name)
+
+    def test_python_ci_runs_windows_and_constraints(self):
+        ci = (ROOT / ".github" / "workflows" / "python-ci.yml").read_text(encoding="utf-8")
+        self.assertRegex(ci, r"run-windows:\n(\s+\w+: .*\n)*?\s+default: true")
+        self.assertRegex(ci, r"if: inputs\.run-windows\n\s+runs-on: windows-latest")
+        self.assertEqual(ci.count("c=(-c constraints.txt)"), 3)  # test・test-windows・security
+
+
 if __name__ == "__main__":
     unittest.main()

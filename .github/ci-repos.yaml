@@ -1,0 +1,18 @@
+# 統合 CI（ci.yml の windows・setup-sh ジョブ）が取り出すリポジトリと版（repos.yaml と同じ書き方）
+# 他のリポジトリの main が変わってもこのリポジトリの CI が落ちたり結果が変わったりしないよう、ref をコミット SHA で固定する。
+# 上げるとき: 各リポジトリの main の SHA に書き換えて PR を出す（CI がその組み合わせで setup を通すことを確かめる）。
+# 項目は repos.yaml の一部で、name・role・python・cli は repos.yaml と同じにする（tests/test_bootstrap.py で確かめる）
+org: shoyo-maya-bot
+host: https://github.com
+
+repos:
+  - name: devtools-common
+    role: library
+    python: true
+    ref: 61ca10f418b7176741cc7977f5971f69da63960d
+
+  - name: doc-to-markdown
+    role: tool
+    python: true
+    cli: doc2md
+    ref: 515dbeb7f702ce0cbe8f7c8d497e55585ead9555
