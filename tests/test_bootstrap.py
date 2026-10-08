@@ -282,3 +282,214 @@ class SelectReposTest(unittest.TestCase):
             self.assertEqual(bootstrap.main(["--only", "doc-to-markdown", "list"]), 0)
         self.assertIn("doc-to-markdown", out.getvalue())
         self.assertNotIn("office-review", out.getvalue())
+
+
+class ManifestCommentTest(unittest.TestCase):
+    """repos.yaml の行末コメントは引用符の外だけを除く。読めない形は黙って読み飛ばさず誤りにする."""
+
+    def _load(self, text: str):
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        p = tmp / "repos.yaml"
+        p.write_text(text, encoding="utf-8")
+        return bootstrap.load_manifest(p)
+
+    def test_hash_inside_quotes_is_kept(self):
+        top, repos = self._load(
+            'org: "my # org"  # 組織\n'
+            "repos:\n"
+            "  - name: a   # 名前\n"
+            '    description: "C# と F# の # ツール" # 説明\n'
+            "    cli: 'x #1'\n"
+            "    ref: v1 # タグ\n"
+        )
+        self.assertEqual(top["org"], "my # org")
+        self.assertEqual(repos[0].name, "a")
+        self.assertEqual(repos[0].description, "C# と F# の # ツール")
+        self.assertEqual(repos[0].cli, "x #1")
+        self.assertEqual(repos[0].ref, "v1")
+
+    def test_hash_without_space_is_value(self):
+        _, repos = self._load("repos:\n  - name: a\n    description: C#で書いた\n")
+        self.assertEqual(repos[0].description, "C#で書いた")
+
+    def test_unreadable_forms_are_errors(self):
+        cases = {
+            '  - name: a\n    description: "閉じていない # x\n': "閉じていません",
+            '  - name: a\n    description: "a" b\n': "余計な文字",
+            "  - name: a\n    descripton: typo\n": "知らない項目",
+            "  - name: a\n    just text\n": "読めない行",
+            "  - name: a\n  - name: a\n": "2 回",
+            "  - role: tool\n": "name がありません",
+            "  - name: a\n    python: yes\n": "true / false",
+        }
+        for body, msg in cases.items():
+            with self.subTest(body=body), self.assertRaises(bootstrap.ManifestError) as cm:
+                self._load("repos:\n" + body)
+            self.assertIn(msg, str(cm.exception))
+            self.assertRegex(str(cm.exception), r"repos\.yaml:\d+: ")
+
+    def test_main_reports_manifest_error_as_usage_error(self):
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        p = tmp / "m.yaml"
+        p.write_text('repos:\n  - name: "a\n', encoding="utf-8")
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.assertEqual(bootstrap.main(["--manifest", str(p), "list"]), 2)
+        self.assertIn("マニフェストを読めません", err.getvalue())
+        self.assertIn("m.yaml:2", err.getvalue())
+
+    def test_real_manifests_still_parse(self):
+        self.assertTrue(bootstrap.load_manifest()[1])
+        self.assertTrue(bootstrap.load_manifest(ROOT / ".github" / "ci-repos.yaml")[1])
+
+
+class CheckPinsTest(unittest.TestCase):
+    """一括インストールの前に、各ツールの devtools-common などの固定 SHA の食い違いを見つける."""
+
+    COMMON_URL = "git+https://github.com/o/devtools-common.git"
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+
+    def _pkg(self, rel: str, name: str, deps: list[str], optional: dict | None = None):
+        d = self.tmp / rel
+        d.mkdir(parents=True, exist_ok=True)
+        text = f'[project]\nname = "{name}"\ndependencies = {deps!r}\n'.replace("'", '"')
+        if optional:
+            text += "[project.optional-dependencies]\n" + "".join(
+                f"{k} = {v!r}\n".replace("'", '"') for k, v in optional.items()
+            )
+        (d / "pyproject.toml").write_text(text, encoding="utf-8")
+
+    def test_url_pin(self):
+        self.assertEqual(
+            bootstrap.url_pin(f"devtools-common[excel] @ {self.COMMON_URL}@abc ; python_version>='3.12'"),
+            ("devtools-common", "git+https://github.com/o/devtools-common", "abc"),
+        )
+        self.assertEqual(
+            bootstrap.url_pin("auto-review @ git+https://h/o/lab.git@def#subdirectory=auto-review"),
+            ("auto-review", "git+https://h/o/lab", "def"),
+        )
+        self.assertIsNone(bootstrap.url_pin("PyYAML>=6"))
+
+    def test_same_pins_are_ok(self):
+        self._pkg("tool-a", "tool-a", [f"devtools-common @ {self.COMMON_URL}@aaa", "PyYAML>=6"])
+        self._pkg("tool-b", "tool-b", [f"devtools-common[excel] @ {self.COMMON_URL}@aaa"])
+        repos = [bootstrap.Repo("tool-a", python=True), bootstrap.Repo("tool-b", python=True)]
+        self.assertEqual(bootstrap.check_pins(self.tmp, repos), [])
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(bootstrap.cmd_check_pins(self.tmp, repos), 0)
+        self.assertIn("devtools-common は aaa", out.getvalue())
+
+    def test_mismatch_names_tools_to_align(self):
+        self._pkg("tool-a", "tool-a", [f"devtools-common @ {self.COMMON_URL}@aaa"])
+        self._pkg("tool-b", "tool-b", [f"devtools-common @ {self.COMMON_URL}@aaa"])
+        self._pkg("lab/sub", "sub", [f"devtools-common @ {self.COMMON_URL}@bbb"])
+        repos = [
+            bootstrap.Repo("tool-a", python=True),
+            bootstrap.Repo("tool-b", python=True),
+            bootstrap.Repo("lab", python=True, packages="sub"),
+        ]
+        problems = bootstrap.check_pins(self.tmp, repos)
+        self.assertEqual(len(problems), 1)
+        self.assertIn("devtools-common の固定がツールごとに違います", problems[0])
+        self.assertIn("bbb", problems[0])
+        self.assertIn("そろえる: lab/sub の pyproject.toml の devtools-common の固定を aaa にする", problems[0])
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.assertEqual(bootstrap.cmd_check_pins(self.tmp, repos), 1)
+        self.assertIn("NG", err.getvalue())
+
+    def test_main_check_pins_and_ignored_cases(self):
+        """optional-dependencies と、ほかのツールが URL で固定するパッケージ（手元の checkout は入れない）は見ない."""
+        self._pkg("doc-to-markdown", "doc-to-markdown", [f"devtools-common @ {self.COMMON_URL}@aaa"])
+        self._pkg(
+            "office-review",
+            "office-review",
+            [f"devtools-common @ {self.COMMON_URL}@aaa"],
+            optional={"convert": ["doc-to-markdown @ git+https://h/o/doc-to-markdown.git@old"]},
+        )
+        self._pkg("agent-lab/auto-review", "auto-review", [f"devtools-common @ {self.COMMON_URL}@zzz"])
+        self._pkg(
+            "review-platform",
+            "review-platform",
+            [
+                f"devtools-common @ {self.COMMON_URL}@aaa",
+                "auto-review @ git+https://h/o/agent-lab.git@x#subdirectory=auto-review",
+            ],
+        )
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = bootstrap.main(["--root", str(self.tmp), "check-pins"])
+        self.assertEqual(code, 0, out.getvalue())
+
+        # 固定が食い違えば main も 1
+        self._pkg("design-diff", "design-diff", [f"devtools-common @ {self.COMMON_URL}@bbb"])
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(bootstrap.main(["--root", str(self.tmp), "check-pins"]), 1)
+        self.assertIn("design-diff", err.getvalue())
+
+    def test_setup_and_ci_run_check_pins_before_install(self):
+        sh = (ROOT / "setup.sh").read_text(encoding="utf-8")
+        self.assertLess(sh.index("check-pins"), sh.index('"${BS[@]}" install'))
+        ps1 = (ROOT / "scripts" / "setup.ps1").read_text(encoding="utf-8-sig")
+        self.assertLess(ps1.index("check-pins"), ps1.index('$installArgs = $bs + @("install")'))
+        ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+        self.assertEqual(ci.count("check-pins"), 2)  # windows と setup-sh
+
+
+class PipFailureTest(unittest.TestCase):
+    """pip が失敗したら、トレースバックではなく案内を出して 1 で終わる."""
+
+    def test_install_failure_prints_hint(self):
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        (tmp / "tool-a").mkdir()
+        (tmp / "tool-a" / "pyproject.toml").write_text('[project]\nname = "tool-a"\n', encoding="utf-8")
+        import subprocess
+        from unittest import mock
+
+        err, out = io.StringIO(), io.StringIO()
+        fail = subprocess.CalledProcessError(1, ["pip"])
+        with (
+            mock.patch.object(bootstrap.subprocess, "run", side_effect=fail),
+            contextlib.redirect_stderr(err),
+            contextlib.redirect_stdout(out),
+        ):
+            code = bootstrap.cmd_install(tmp, [bootstrap.Repo("tool-a", python=True)], None, dry_run=False)
+        self.assertEqual(code, 1)
+        self.assertIn("インストールに失敗しました（pip の終了コード: 1）", err.getvalue())
+        self.assertIn("check-pins", err.getvalue())
+        self.assertNotIn("Traceback", err.getvalue())
+
+    def test_missing_python_executable_is_reported(self):
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        (tmp / "tool-a").mkdir()
+        (tmp / "tool-a" / "pyproject.toml").write_text('[project]\nname = "tool-a"\n', encoding="utf-8")
+        from unittest import mock
+
+        err = io.StringIO()
+        with (
+            mock.patch.object(bootstrap.subprocess, "run", side_effect=FileNotFoundError("python")),
+            contextlib.redirect_stderr(err),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            code = bootstrap.cmd_install(tmp, [bootstrap.Repo("tool-a", python=True)], None, dry_run=False)
+        self.assertEqual(code, 1)
+        self.assertIn("インストールに失敗しました", err.getvalue())
+
+
+class ReadmeNeighborCommonTest(unittest.TestCase):
+    """README の「隣の devtools-common」の説明が doc-to-markdown の install_deps.py（隣にあれば editable）と合う."""
+
+    def test_readme_describes_install_deps_behavior(self):
+        text = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertNotIn("同じフォルダに clone した devtools-common は使いません", text)
+        self.assertIn("scripts/install_deps.py", text)
+        self.assertIn("隣のフォルダに devtools-common があればそれを editable で入れて", text)

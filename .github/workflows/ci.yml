@@ -107,6 +107,7 @@ jobs:
           & "$venv\python.exe" -c $env:SMOKE_IMPORTS; if ($LASTEXITCODE) { exit 1 }
           python scripts\bootstrap.py --manifest .github\ci-repos.yaml status
           python scripts\bootstrap.py --manifest .github\ci-repos.yaml check-python; if ($LASTEXITCODE) { exit 1 }
+          python scripts\bootstrap.py --manifest .github\ci-repos.yaml check-pins; if ($LASTEXITCODE) { exit 1 }
 
   # macOS・Linux の入口（setup.sh）が実際に動くことを確かめる。Python の版の確認（3.12 以上）もここを通る
   setup-sh:
@@ -133,6 +134,7 @@ jobs:
           for cli in $SMOKE_CLIS; do "$venv/$cli" --help >/dev/null; echo "ok $cli"; done
           "$venv/python" -c "$SMOKE_IMPORTS"
           python3 scripts/bootstrap.py --manifest .github/ci-repos.yaml check-python
+          python3 scripts/bootstrap.py --manifest .github/ci-repos.yaml check-pins
           # 取り出した版が ci-repos.yaml の ref と同じか
           python3 - <<'PY'
           import subprocess, sys

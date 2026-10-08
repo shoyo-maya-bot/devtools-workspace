@@ -34,6 +34,12 @@ if ($LASTEXITCODE -ne 0) { exit 1 }
 # 取得済みのリポジトリは最新にする（手元に変更があって進められないものは知らせて先へ進む）
 & $py @pyArgs @bs pull
 if ($LASTEXITCODE -ne 0) { Write-Host "最新にできなかったリポジトリがあります（上の表示を確かめてください）。セットアップは続けます。" -ForegroundColor Yellow }
+# 一括インストールの前に、各ツールが固定した devtools-common などの版がそろっているかを確かめる
+# （食い違うと pip が衝突で止まる。どのツールの固定をそろえるかを表示して止める）。-Dev はローカルの checkout で置き換えるので見ない
+if (-not $Dev) {
+    & $py @pyArgs @bs check-pins
+    if ($LASTEXITCODE -ne 0) { Write-Host "固定がそろっていないため、インストールを止めました（上の表示を確かめてください）" -ForegroundColor Red; exit 1 }
+}
 $installArgs = $bs + @("install"); if ($Dev) { $installArgs += @("--dev") }
 & $py @pyArgs @installArgs
 if ($LASTEXITCODE -ne 0) { exit 1 }

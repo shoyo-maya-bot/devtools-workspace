@@ -52,7 +52,10 @@ MCP などの追加設定は不要です。**使うリポジトリを 1 つ clon
    - `install-prereqs.cmd -DryRun` で、何を入れるかを表示するだけにできる（確認を出さず、何も変えない）
    - 別の版の Java（8 など）が入っていても消さずに 17 を追加する。WSL2 を有効にしたときは再起動が要る
    - Rancher Desktop 1.23.1 / 1.24.0 の不具合（docker が `timed out dialing Hyper-V socket` になる）の回避策も置く（[rancher-desktop#10780](https://github.com/rancher-sandbox/rancher-desktop/issues/10780)）
-1. 使いたいリポジトリを clone する（Python のツールは、各ツールが `pyproject.toml` でコミット SHA を固定した devtools-common を、セットアップのときに GitHub から取ってきます。同じフォルダに clone した devtools-common は使いません。ローカルの devtools-common で試したいときは開発者向けの `--dev` を使います）
+1. 使いたいリポジトリを clone する（Python のツールは、各ツールが `pyproject.toml` でコミット SHA を固定した devtools-common を、セットアップのときに GitHub から取ってきます。
+   ただし **doc-to-markdown の `setup.cmd`・`setup.sh`（`scripts/install_deps.py`）は、隣のフォルダに devtools-common があればそれを editable で入れて固定の代わりに使います**（GitHub の認証が無くても入れられるようにするため。隣の checkout がどのコミットかはそのまま使われます）。
+   固定した版で入れたいときは、隣に devtools-common を置かないか、下の「全部まとめて使う」の `setup`（各ツールの固定 SHA を使う）を使います。
+   ほかのツールの `setup.cmd`・`setup.sh` は隣の devtools-common を使わず、固定した版を入れます。ワークスペースの `setup` で全ツールのローカルの devtools-common を使いたいときは開発者向けの `--dev` を使います）
 2. **Windows**: `setup.cmd` をダブルクリック ／ **macOS・Linux**: `./setup.sh`
 3. VS Code でそのフォルダを開き、Copilot Chat で `/` と入力 → プロンプトを選ぶ
 
@@ -120,12 +123,16 @@ python scripts/bootstrap.py install                  # ../.venv に Python の�
 python scripts/bootstrap.py install --dev            # 開発者向け: devtools-common をローカルの checkout で置き換えて入れる
 python scripts/bootstrap.py status                   # 各リポのブランチ・未コミット・最新タグ
 python scripts/bootstrap.py check-python             # 各ツールの requires-python と setup の最低版（3.12）が合っているか
+python scripts/bootstrap.py check-pins               # 各ツールが固定した devtools-common などの SHA がそろっているか
 code devtools.code-workspace                         # VS Code で全リポを 1 ウィンドウに
 ```
 
 `install`（`setup.cmd`・`setup.sh` も同じ）は、各ツールが `devtools-common @ git+…@<SHA>` で固定した版を pip にそのまま解決させます。
 手元の devtools-common の checkout がどのコミットでも、ツールはテスト済みの版の共有ライブラリで動きます。
-ツールどうしで固定した SHA が食い違うと pip が衝突として止めるので、そのときは各ツールの固定をそろえてください。
+ツールどうしで固定した SHA が食い違うと pip が衝突として止めるので、`setup` は一括インストールの前に `bootstrap.py check-pins` を流し、
+食い違っていれば **どのツールの固定をどの SHA にそろえるか** を表示して止めます（`--dev` はローカルの checkout で置き換えるので見ない）。
+見るのは各パッケージの `dependencies` の URL 固定（devtools-common・auto-review など）です。
+pip が別の理由で失敗したときも、トレースバックではなく、原因の候補（ネットワーク・固定の食い違い・Python の版）を表示して終了コード 1 で止まります。
 
 `install --dev`（`setup.cmd -Dev`・`setup.sh --dev`）は開発者向けです。固定を外し、**ローカルの devtools-common を editable で** 入れます
 （ツールは `--no-deps` で入れ、ほかの依存と dev 用の依存は別に入れる）。共有ライブラリとツールを同時に変更して試せます。
@@ -135,6 +142,7 @@ Python のパッケージがサブフォルダにあるリポジトリ（agent-l
 ほかのツールが URL で固定しているパッケージ（review-platform が固定する auto-review、各ツールが固定する devtools-common）は、既定の `install` では手元の checkout を入れず、固定した版を使います。
 
 `clone` / `pull` は既定ブランチを取り出します。repos.yaml の項目に `ref:`（ブランチ・タグ・コミット SHA）を書くと、そのリポジトリはその ref を取り出します。
+マニフェストの行末の ` # コメント` は除きます（`"…"`・`'…'` で囲んだ値の中の `#` は値の一部）。読めない行・知らない項目・閉じていない引用符は、黙って読み飛ばさず、ファイル名と行番号を表示して終了コード 2 で止まります。
 別のマニフェストを使うときは `bootstrap.py --manifest <ファイル>`（`setup.sh --manifest`・`setup.cmd -Manifest`）を渡します。
 新しいツールの追加手順は [docs/NEW_TOOL.md](docs/NEW_TOOL.md) を参照してください。
 
@@ -148,7 +156,7 @@ Python のパッケージがサブフォルダにあるリポジトリ（agent-l
 | 単体テストが Windows でも通るか | `python -m unittest discover -s tests` |
 | PowerShell のスクリプトに誤りがないか | PSScriptAnalyzer（Error と Warning。色付き表示に使っている `Write-Host` の警告だけは対象外） |
 | `install-prereqs.cmd` が動くか | `-Check`（足りないものがあれば終了コード 1 になるのは正常。2 以上なら失敗）と `-DryRun` |
-| `setup.cmd` で全 Python ツールを取得・インストールできるか | `setup.cmd -Manifest .github\ci-repos.yaml` を 2 回（2 回目は取得済みのものを最新にする流れ）。そのあと各 CLI の `--help`、全パッケージの import、`bootstrap.py check-python` |
+| `setup.cmd` で全 Python ツールを取得・インストールできるか | `setup.cmd -Manifest .github\ci-repos.yaml` を 2 回（2 回目は取得済みのものを最新にする流れ）。そのあと各 CLI の `--help`、全パッケージの import、`bootstrap.py check-python`・`check-pins`（setup の中でも check-pins を流す） |
 | `setup.sh` で取得・インストールできるか（macOS・Linux） | `setup-sh` ジョブ（ubuntu-latest と macos-latest）で同じことをし、取り出した版が `ci-repos.yaml` の SHA と同じかも確かめる |
 | 古い Python で分かりやすく止まるか | 単体テスト（`tests/test_python_version.py`。3.9 のふりをして `bootstrap.py` と `setup.sh` を動かす） |
 
