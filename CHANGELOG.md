@@ -3,6 +3,16 @@
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/)、版は [SemVer](https://semver.org/lang/ja/) に従います。
 
 
+## 2026-10-08 固定 SHA の食い違いをセットアップ前に検出、pip の失敗の案内、マニフェストのコメントの扱い
+
+- `bootstrap.py check-pins`（新しいサブコマンド。check-python と同じ形）: 取得済みの各パッケージが `dependencies` で URL 固定した
+  devtools-common・auto-review などの版が食い違っていないかを確かめる。食い違えば、どのツールの固定をどの SHA にそろえるかを表示して 1。
+  `setup.sh`・`setup.cmd` は一括インストールの前に流して止める（`--dev`・`-Dev` では流さない）。統合 CI（windows・setup-sh）でも流す
+- `bootstrap.py install`: pip が失敗したとき、トレースバックではなく原因の候補（ネットワーク・固定の食い違い・Python の版）を表示して 1 で終わる
+- repos.yaml の読み込み: 行末の ` # コメント` を、引用符で囲んだ値の中では切らない。閉じていない引用符・読めない行・知らない項目・
+  重複した name は、ファイル名と行番号を表示して終了コード 2 で止める（以前は黙って読み飛ばしていた）
+- README: doc-to-markdown の `setup`（`scripts/install_deps.py`）は隣の devtools-common を editable で使う、と実際に合わせて書いた
+
 ## 2026-10-08 Python は 3.12 以上、全 Python ツールの一括インストールを CI で、python-ci の inputs を env で渡す
 
 - Python の最低版を 3.12 に（`scripts/python_version.py` の `MIN_VERSION`）。3.11 で「OK」と表示した直後に、
