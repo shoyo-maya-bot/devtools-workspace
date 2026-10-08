@@ -3,6 +3,19 @@
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/)、版は [SemVer](https://semver.org/lang/ja/) に従います。
 
 
+## 2026-10-09 ref にそろわないまま install しない、requires-python の判定、トークンを pip に渡さない、リリース前のテスト
+
+- `bootstrap.py install`（`setup.sh`・`setup.cmd` も）: マニフェストで `ref` を指定したリポジトリの HEAD が ref のコミットと違えば、
+  理由を表示してインストールせずに 1 で止める（clone 直後の checkout や pull で ref にそろえられないまま、既定ブランチの版を入れていた）。
+  clone 直後に ref を取り出せないときも、何を取り出せなかったかを表示して止める
+- `bootstrap.py` の requires-python の判定（check-python）: PEP 440 の指定子として判定する（`~=3.12.1` は 3.13 を受け付けない、`>3.12` は 3.12.1 以降を受け付ける）。依存は増やしていない
+- python-ci.yml: `DEPS_TOKEN` を git 依存の取得（git clone）だけに使い、`pip install` の手順の環境からは消す（第三者の sdist のビルドからトークンが読めないように）
+- python-release.yml: 公開の前に python-ci.yml と同じ lint・test（ubuntu・Windows）を流し、通ったときだけ Release を作る。
+  inputs（`python-versions`・`extra-apt-packages`・`run-windows`・`windows-python-version`）は省略可で、既定は python-ci.yml と同じ
+- examples/expense-pipeline.sh・.ps1: `../.venv` の `doc2md`・`fieldcheck` を直接使う（有効化は不要）。見つからなければ何をすればよいかを表示して 2。
+  統合 CI（setup-sh・windows）で setup のあとに 1 回動かす
+- docs/NEW_TOOL.md: 登録の手順に `armory/index.html` の `ITEMS` と `.github/ci-repos.yaml`（Python のとき）を足した
+
 ## 2026-10-08 固定 SHA の食い違いをセットアップ前に検出、pip の失敗の案内、マニフェストのコメントの扱い
 
 - `bootstrap.py check-pins`（新しいサブコマンド。check-python と同じ形）: 取得済みの各パッケージが `dependencies` で URL 固定した
