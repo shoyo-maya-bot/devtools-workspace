@@ -182,12 +182,15 @@ def cmd_clone(root: Path, top: dict[str, str], repos: list[Repo], org: str | Non
     for r in repos:
         dest = root / r.name
         if dest.exists():
-            print(f"skip   {r.name}（取得済み）")
+            print(f"skip   {r.name}（取得済み" + ("。ref には pull でそろえる）" if r.ref else "）"))
             continue
         print(f"clone  {r.name}" + (f" @ {r.ref}" if r.ref else ""))
         git(["clone", f"{host}/{org}/{r.name}.git", str(dest)])
         if r.ref:
-            git(["checkout", "-q", r.ref], cwd=dest)
+            p = subprocess.run(["git", "checkout", "-q", r.ref], cwd=dest, capture_output=True, text=True, check=False)
+            if p.returncode != 0:
+                # clone は残る（次の setup では skip される）が、install は HEAD が ref と違うリポジトリがあれば止まる
+                raise SystemExit(f"clone  {r.name}: {r.ref} を取り出せませんでした: {p.stderr.strip()}")
     return 0
 
 
@@ -224,6 +227,28 @@ def _update_to_ref(d: Path, ref: str) -> subprocess.CompletedProcess[str]:
     if git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=d, check=False) not in ("", "HEAD"):
         p = subprocess.run(["git", "pull", "--ff-only"], cwd=d, capture_output=True, text=True, check=False)
     return p
+
+
+def ref_mismatches(root: Path, repos: list[Repo]) -> list[str]:
+    """マニフェストで ref を指定したリポジトリのうち、手元の HEAD がその ref のコミットと違うもの（無ければ空）.
+
+    clone の直後の checkout や pull で ref にそろえられなかったまま install すると、既定ブランチなど
+    意図しない版が入ってしまう。install の前にこれで確かめて止める。
+    """
+    problems: list[str] = []
+    for r in repos:
+        if not r.ref:
+            continue
+        d = root / r.name
+        if not (d / ".git").exists():
+            continue  # 未取得のものは install_plan が扱う（ここでは版のずれだけを見る）
+        want = git(["rev-parse", "--verify", "-q", f"{r.ref}^{{commit}}"], cwd=d, check=False)
+        head = git(["rev-parse", "--verify", "-q", "HEAD"], cwd=d, check=False)
+        if not want:
+            problems.append(f"{r.name}: ref {r.ref} が手元にありません（今の HEAD は {head[:12] or '不明'}）")
+        elif want != head:
+            problems.append(f"{r.name}: HEAD {head[:12] or '不明'} が ref {r.ref}（{want[:12]}）と違います")
+    return problems
 
 
 def cmd_status(root: Path, repos: list[Repo]) -> int:
@@ -321,23 +346,64 @@ def requires_python_lower_bound(spec: str) -> tuple[int, ...]:
     return max(lows) if lows else ()
 
 
+_CLAUSE = re.compile(r"^(~=|===|==|!=|<=|>=|<|>)\s*(\d+(?:\.\d+)*)(\.\*)?$")
+
+
+def _pad(v: tuple[int, ...], n: int) -> tuple[int, ...]:
+    return v + (0,) * (n - len(v))
+
+
+def _clause_ok(op: str, w: tuple[int, ...], wildcard: bool, v: tuple[int, ...]) -> bool:
+    """PEP 440 の比較 1 つ（リリース番号だけ。プレリリースなどは requires-python に書かない前提）."""
+    if wildcard:  # ==3.12.* / !=3.12.*: 先頭の一致
+        hit = _pad(v, len(w))[: len(w)] == w
+        return hit if op == "==" else not hit
+    n = max(len(v), len(w))
+    a, b = _pad(v, n), _pad(w, n)
+    if op == "~=":  # ~=3.12.1 は >=3.12.1, ==3.12.*（最後の桁だけ上がってよい）
+        return a >= b and _pad(v, len(w))[: len(w) - 1] == w[:-1]
+    return {
+        "==": a == b,
+        "===": a == b,
+        "!=": a != b,
+        ">=": a >= b,
+        "<=": a <= b,
+        ">": a > b,
+        "<": a < b,
+    }[op]
+
+
 def accepts(spec: str, version: tuple[int, ...]) -> bool:
-    """requires-python が version（major, minor の組）を受け付けるか（major.minor で比べる）."""
-    v = version[:2]
-    for op, raw in re.findall(r"(>=|<=|~=|==|!=|>|<)\s*([\d.*]+)", spec):
-        w = _ver(raw)[:2]
-        ok = {
-            ">=": v >= w,
-            "~=": v >= w,
-            ">": v > w or (len(_ver(raw)) > 2 and v >= w),
-            "<": v < w,
-            "<=": v <= w,
-            "==": v == w,
-            "!=": v != w,
-        }[op]
-        if not ok:
+    """requires-python（PEP 440 の指定子のカンマ区切り）が version を受け付けるか.
+
+    依存を増やさないよう packaging の SpecifierSet と同じ判定をリリース番号の範囲で実装している
+    （`~=3.12.1` は 3.13 を受け付けない、`>3.12` は 3.12.1 以降を受け付ける など）。
+    version が (major, minor) だけのときは、その系列（3.12 なら 3.12.x）のどれかを受け付ければ True。
+    読めない指定（`~=3` のような 1 桁の ~= や、数字でない版）は受け付けない（False）として扱う.
+    """
+    clauses: list[tuple[str, tuple[int, ...], bool]] = []
+    for raw in spec.split(","):
+        raw = raw.strip()
+        if not raw:
+            continue
+        m = _CLAUSE.match(raw)
+        if m is None:
             return False
-    return True
+        op, w, wildcard = m.group(1), tuple(int(x) for x in m.group(2).split(".")), bool(m.group(3))
+        if (op == "~=" and len(w) < 2) or (wildcard and op not in ("==", "!=")):
+            return False
+        clauses.append((op, w, wildcard))
+    if len(version) >= 3:
+        candidates = [tuple(version)]
+    else:
+        # 系列の中で境目になりうる版（.0、指定に出てくるパッチ番号とその前後、十分大きいパッチ）を試す
+        series = tuple(version[:2])
+        patches = {0, 10**6}
+        for _, w, _ in clauses:
+            if w[:2] == series and len(w) > 2:
+                patches |= {w[2], w[2] + 1, max(w[2] - 1, 0)}
+        candidates = [(*series, p) for p in sorted(patches)]
+    return any(all(_clause_ok(op, w, wc, v) for op, w, wc in clauses) for v in candidates)
 
 
 def check_python(root: Path, repos: list[Repo], minimum: tuple[int, ...]) -> list[str]:
@@ -515,6 +581,16 @@ def cmd_install(root: Path, repos: list[Repo], venv_dir: Path | None, dry_run: b
             print(f"venv   {venv_dir}")
             venv.EnvBuilder(with_pip=True).create(venv_dir)
         python = str(venv_dir / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python"))
+    mismatched = ref_mismatches(root, [r for r in repos if r.python])
+    if mismatched:
+        for m in mismatched:
+            print(f"NG     {m}", file=sys.stderr)
+        print(
+            "マニフェストの ref にそろっていないリポジトリがあるため、インストールを止めました。"
+            "手元の変更を確かめてから `bootstrap.py pull` で ref にそろえ、もう一度実行してください",
+            file=sys.stderr,
+        )
+        return 1
     if dev:
         print("mode   開発者向け（--dev）: devtools-common はローカルの checkout を editable で使います")
     notes: list[str] = []

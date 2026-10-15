@@ -49,7 +49,7 @@ on:
         default: "3.12"
     secrets:
       DEPS_TOKEN:
-        description: 非公開の依存リポジトリ（devtools-common 等）を読むためのトークン（read-only）。依存のインストールの手順だけで使う
+        description: 非公開の依存リポジトリ（devtools-common 等）を読むためのトークン（read-only）。依存のインストールの手順の git clone だけで使い、pip には渡さない
         required: false
 
 permissions:
@@ -109,12 +109,34 @@ jobs:
         env:
           DEPS_TOKEN: ${{ secrets.DEPS_TOKEN }}
         run: |
-          # git の設定ファイル（~/.gitconfig）に書かず、この手順のプロセスの環境変数だけで認証付きの URL に置き換える
-          if [ -n "$DEPS_TOKEN" ]; then
-            export GIT_CONFIG_COUNT=1
-            export GIT_CONFIG_KEY_0="url.https://x-access-token:${DEPS_TOKEN}@github.com/.insteadOf"
-            export GIT_CONFIG_VALUE_0="https://github.com/"
+          # DEPS_TOKEN は git 依存の取得（git clone）だけに使い、pip には渡さない（pip が第三者の sdist をビルドするとき、
+          # そのビルドのコードからトークンが読めてしまうため）。git の設定ファイル（~/.gitconfig）にも書かない。
+          # 1. pyproject.toml・constraints.txt にある github.com の git 依存を、トークン付きで手元の bare リポジトリ（RUNNER_TEMP）に写す
+          # 2. トークンを消し、pip の git には insteadOf（トークンなし）でその写しを読ませる
+          # 写すのは両ファイルに書いた github.com の依存だけ（constraints.txt があれば間接の git 依存も入る）
+          if [ -n "${DEPS_TOKEN:-}" ]; then
+            mirrors="$RUNNER_TEMP/git-deps"
+            if command -v cygpath >/dev/null 2>&1; then mirrors="$(cygpath -u "$RUNNER_TEMP")/git-deps"; fi
+            mkdir -p "$mirrors"
+            deps=$(cat pyproject.toml constraints.txt 2>/dev/null | grep -oE 'git\+https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+' | sed -E 's#^git\+https://github\.com/##; s#\.git$##' | sort -u || true)
+            n=0
+            for dep in $deps; do
+              dest="$mirrors/$dep.git"
+              echo "git 依存を取得します: github.com/$dep"
+              GIT_CONFIG_COUNT=1 \
+              GIT_CONFIG_KEY_0="url.https://x-access-token:${DEPS_TOKEN}@github.com/.insteadOf" \
+              GIT_CONFIG_VALUE_0="https://github.com/" \
+                git clone --quiet --mirror "https://github.com/$dep.git" "$dest"
+              local_path="$dest"
+              if command -v cygpath >/dev/null 2>&1; then local_path="$(cygpath -m "$dest")"; fi
+              for from in "https://github.com/$dep.git" "https://github.com/$dep"; do
+                export "GIT_CONFIG_KEY_$n=url.$local_path.insteadOf" "GIT_CONFIG_VALUE_$n=$from"
+                n=$((n + 1))
+              done
+            done
+            export GIT_CONFIG_COUNT=$n
           fi
+          unset DEPS_TOKEN
           c=(); if [ -f constraints.txt ]; then c=(-c constraints.txt); echo "constraints.txt を使います"; fi
           pip install -e ".[dev]" "${c[@]}"
       - run: pytest -q
@@ -140,12 +162,34 @@ jobs:
         env:
           DEPS_TOKEN: ${{ secrets.DEPS_TOKEN }}
         run: |
-          # git の設定ファイル（~/.gitconfig）に書かず、この手順のプロセスの環境変数だけで認証付きの URL に置き換える
-          if [ -n "$DEPS_TOKEN" ]; then
-            export GIT_CONFIG_COUNT=1
-            export GIT_CONFIG_KEY_0="url.https://x-access-token:${DEPS_TOKEN}@github.com/.insteadOf"
-            export GIT_CONFIG_VALUE_0="https://github.com/"
+          # DEPS_TOKEN は git 依存の取得（git clone）だけに使い、pip には渡さない（pip が第三者の sdist をビルドするとき、
+          # そのビルドのコードからトークンが読めてしまうため）。git の設定ファイル（~/.gitconfig）にも書かない。
+          # 1. pyproject.toml・constraints.txt にある github.com の git 依存を、トークン付きで手元の bare リポジトリ（RUNNER_TEMP）に写す
+          # 2. トークンを消し、pip の git には insteadOf（トークンなし）でその写しを読ませる
+          # 写すのは両ファイルに書いた github.com の依存だけ（constraints.txt があれば間接の git 依存も入る）
+          if [ -n "${DEPS_TOKEN:-}" ]; then
+            mirrors="$RUNNER_TEMP/git-deps"
+            if command -v cygpath >/dev/null 2>&1; then mirrors="$(cygpath -u "$RUNNER_TEMP")/git-deps"; fi
+            mkdir -p "$mirrors"
+            deps=$(cat pyproject.toml constraints.txt 2>/dev/null | grep -oE 'git\+https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+' | sed -E 's#^git\+https://github\.com/##; s#\.git$##' | sort -u || true)
+            n=0
+            for dep in $deps; do
+              dest="$mirrors/$dep.git"
+              echo "git 依存を取得します: github.com/$dep"
+              GIT_CONFIG_COUNT=1 \
+              GIT_CONFIG_KEY_0="url.https://x-access-token:${DEPS_TOKEN}@github.com/.insteadOf" \
+              GIT_CONFIG_VALUE_0="https://github.com/" \
+                git clone --quiet --mirror "https://github.com/$dep.git" "$dest"
+              local_path="$dest"
+              if command -v cygpath >/dev/null 2>&1; then local_path="$(cygpath -m "$dest")"; fi
+              for from in "https://github.com/$dep.git" "https://github.com/$dep"; do
+                export "GIT_CONFIG_KEY_$n=url.$local_path.insteadOf" "GIT_CONFIG_VALUE_$n=$from"
+                n=$((n + 1))
+              done
+            done
+            export GIT_CONFIG_COUNT=$n
           fi
+          unset DEPS_TOKEN
           c=(); if [ -f constraints.txt ]; then c=(-c constraints.txt); echo "constraints.txt を使います"; fi
           pip install -e ".[dev]" "${c[@]}"
       - run: pytest -q
@@ -166,11 +210,34 @@ jobs:
         env:
           DEPS_TOKEN: ${{ secrets.DEPS_TOKEN }}
         run: |
-          if [ -n "$DEPS_TOKEN" ]; then
-            export GIT_CONFIG_COUNT=1
-            export GIT_CONFIG_KEY_0="url.https://x-access-token:${DEPS_TOKEN}@github.com/.insteadOf"
-            export GIT_CONFIG_VALUE_0="https://github.com/"
+          # DEPS_TOKEN は git 依存の取得（git clone）だけに使い、pip には渡さない（pip が第三者の sdist をビルドするとき、
+          # そのビルドのコードからトークンが読めてしまうため）。git の設定ファイル（~/.gitconfig）にも書かない。
+          # 1. pyproject.toml・constraints.txt にある github.com の git 依存を、トークン付きで手元の bare リポジトリ（RUNNER_TEMP）に写す
+          # 2. トークンを消し、pip の git には insteadOf（トークンなし）でその写しを読ませる
+          # 写すのは両ファイルに書いた github.com の依存だけ（constraints.txt があれば間接の git 依存も入る）
+          if [ -n "${DEPS_TOKEN:-}" ]; then
+            mirrors="$RUNNER_TEMP/git-deps"
+            if command -v cygpath >/dev/null 2>&1; then mirrors="$(cygpath -u "$RUNNER_TEMP")/git-deps"; fi
+            mkdir -p "$mirrors"
+            deps=$(cat pyproject.toml constraints.txt 2>/dev/null | grep -oE 'git\+https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+' | sed -E 's#^git\+https://github\.com/##; s#\.git$##' | sort -u || true)
+            n=0
+            for dep in $deps; do
+              dest="$mirrors/$dep.git"
+              echo "git 依存を取得します: github.com/$dep"
+              GIT_CONFIG_COUNT=1 \
+              GIT_CONFIG_KEY_0="url.https://x-access-token:${DEPS_TOKEN}@github.com/.insteadOf" \
+              GIT_CONFIG_VALUE_0="https://github.com/" \
+                git clone --quiet --mirror "https://github.com/$dep.git" "$dest"
+              local_path="$dest"
+              if command -v cygpath >/dev/null 2>&1; then local_path="$(cygpath -m "$dest")"; fi
+              for from in "https://github.com/$dep.git" "https://github.com/$dep"; do
+                export "GIT_CONFIG_KEY_$n=url.$local_path.insteadOf" "GIT_CONFIG_VALUE_$n=$from"
+                n=$((n + 1))
+              done
+            done
+            export GIT_CONFIG_COUNT=$n
           fi
+          unset DEPS_TOKEN
           c=(); if [ -f constraints.txt ]; then c=(-c constraints.txt); fi
           pip install -e . "${c[@]}"
       # 検査ツールはトークンの無い手順で、版を固定して入れる

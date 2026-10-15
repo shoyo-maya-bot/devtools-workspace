@@ -109,6 +109,15 @@ jobs:
           python scripts\bootstrap.py --manifest .github\ci-repos.yaml check-python; if ($LASTEXITCODE) { exit 1 }
           python scripts\bootstrap.py --manifest .github\ci-repos.yaml check-pins; if ($LASTEXITCODE) { exit 1 }
 
+      - name: Pipeline example (doc2md → fieldcheck; the sample has deliberate findings → 1)
+        env:
+          PYTHONUTF8: "1"
+        run: |
+          .\examples\expense-pipeline.ps1 -Out "$env:RUNNER_TEMP\pipeline"
+          if ($LASTEXITCODE -ne 1) { Write-Output "::error::パイプライン例の終了コードが 1（指摘あり）ではありません: $LASTEXITCODE"; exit 1 }
+          if (-not (Test-Path "$env:RUNNER_TEMP\pipeline\expense-list.validation.html")) { Write-Output "::error::レポートがありません"; exit 1 }
+          exit 0
+
   # macOS・Linux の入口（setup.sh）が実際に動くことを確かめる。Python の版の確認（3.12 以上）もここを通る
   setup-sh:
     strategy:
@@ -146,3 +155,11 @@ jobs:
               print(r.name, head)
               assert head == r.ref, f"{r.name}: {head} != {r.ref}"
           PY
+      - name: Pipeline example (doc2md → fieldcheck; the sample has deliberate findings → 1)
+        run: |
+          set +e
+          OUT="$RUNNER_TEMP/pipeline" ./examples/expense-pipeline.sh
+          rc=$?
+          set -e
+          if [ "$rc" -ne 1 ]; then echo "::error::パイプライン例の終了コードが 1（指摘あり）ではありません: $rc"; exit 1; fi
+          test -f "$RUNNER_TEMP/pipeline/expense-list.validation.html"

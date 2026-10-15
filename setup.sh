@@ -35,7 +35,7 @@ fi
 "$PY" scripts/python_version.py
 BS=("$PY" scripts/bootstrap.py ${MANIFEST:+--manifest "$MANIFEST"} ${ONLY:+--only "$ONLY"})
 "${BS[@]}" clone ${ORG:+--org "$ORG"}
-"${BS[@]}" pull || echo "最新にできなかったリポジトリがあります（上の表示を確かめてください）。セットアップは続けます。" >&2
+"${BS[@]}" pull || echo "最新にできなかったリポジトリがあります（上の表示を確かめてください）。ref を指定したリポジトリが ref にそろっていなければ、インストールの前に止めます。" >&2
 # 一括インストールの前に、各ツールが固定した devtools-common などの版がそろっているかを確かめる
 # （食い違うと pip が衝突で止まる。どのツールの固定をそろえるかを表示して止める）。--dev はローカルの checkout で置き換えるので見ない
 if [ -z "$DEV" ]; then

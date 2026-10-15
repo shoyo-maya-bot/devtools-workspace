@@ -1,5 +1,5 @@
 # マルチレポのマニフェスト（リポジトリ一覧の正の情報源）
-# 新しいリポジトリを作ったら、ここに 1 件追加する（bootstrap・VS Code ワークスペース・README の一覧がこれを使う。armory/index.html の ITEMS にも足す）
+# 新しいリポジトリを作ったら、ここに 1 件追加する（bootstrap・VS Code ワークスペース・README の一覧がこれを使う。armory/index.html の ITEMS と、Python なら .github/ci-repos.yaml にも足す。手順は docs/NEW_TOOL.md）
 #   role: workspace（このリポ）/ library（共有ライブラリ）/ tool（Python の CLI）/ app（常駐するアプリ）/
 #         environment（開発環境・サンプルアプリ）/ guide（ガイドライン・テンプレート）/ docs（教材・資料）/ slides（スライド）/
 #         lab（実験）/ platform（クラウドに置く基盤）/ org-standard（アカウント共通の既定ファイル）

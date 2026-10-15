@@ -200,7 +200,9 @@ class ReleaseBuildPinTest(unittest.TestCase):
         self.assertIn(f"setuptools ({m.group(1)})", self.text)
 
     def test_build_is_not_installed_unpinned_before_constraints(self):
-        steps = self.text.split("- name: Pin build tools and build backend", 1)
+        # 公開するジョブ（release）の中で、固定の前に pip install しない（前のテストのジョブは別のランナー）
+        release = self.text.split("\n  release:\n", 1)[1]
+        steps = release.split("- name: Pin build tools and build backend", 1)
         self.assertEqual(len(steps), 2)
         self.assertNotIn("pip install", steps[0])
 

@@ -162,6 +162,44 @@ class RequiresPythonTest(unittest.TestCase):
         self.assertTrue(ok(">=3.10,<4", (3, 12)))
         self.assertFalse(ok("!=3.12.*", (3, 12)))
 
+    def test_accepts_follows_pep440(self):
+        """packaging の SpecifierSet と同じ判定（(major, minor) だけなら、その系列のどれかを受け付けるか）."""
+        ok = self.bs.accepts
+        cases = [
+            ("~=3.12.1", (3, 13), False),  # ~=3.12.1 は >=3.12.1, ==3.12.*
+            ("~=3.12.1", (3, 12), True),
+            ("~=3.12.1", (3, 12, 0), False),
+            ("~=3.12.1", (3, 12, 5), True),
+            (">3.12", (3, 12), True),  # 3.12.1 以降を受け付ける
+            (">3.12", (3, 12, 0), False),
+            (">3.12", (3, 12, 1), True),
+            ("~=3.11", (3, 12), True),
+            ("~=3.11", (4, 0), False),
+            ("==3.12.*", (3, 12), True),
+            ("==3.12.*", (3, 13), False),
+            ("!=3.12.*", (3, 13), True),
+            ("==3.12", (3, 12, 0), True),
+            ("==3.12", (3, 12, 1), False),
+            (">=3.12, <3.12.4", (3, 12), True),
+            ("<3.12", (3, 12), False),
+            ("<=3.12", (3, 12, 0), True),
+            (">=3.10,!=3.11.*,<4", (3, 11), False),
+            (">=3.10,!=3.11.*,<4", (3, 12), True),
+            ("", (3, 12), True),
+            ("~=3", (3, 12), False),  # ~= は 2 桁以上でないと誤り
+            (">=3.12a", (3, 12), False),  # 読めない指定は受け付けない
+        ]
+        for spec, version, want in cases:
+            with self.subTest(spec=spec, version=version):
+                self.assertIs(ok(spec, version), want)
+
+    def test_check_python_uses_pep440(self):
+        self._pkg("a", "~=3.12.1")
+        self.assertEqual(
+            self.bs.check_python(self.tmp, [self.bs.Repo("a", python=True)], (3, 13))[:1],
+            ["a: requires-python '~=3.12.1' が Python 3.13 を受け付けません"],
+        )
+
     def test_consistent(self):
         self._pkg("a", ">=3.12")
         self._pkg("b", ">=3.10")
