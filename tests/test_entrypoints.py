@@ -67,6 +67,14 @@ class NonInteractiveTest(unittest.TestCase):
         # winget・wsl・code の実行の前に DryRun で抜けていること
         self.assertIn('if ($DryRun) { Write-Host ("[dry-run] winget "', text)
 
+    def test_prereqs_pins_winget_version_where_set(self):
+        """版を固定したもの（Rancher Desktop）は winget install --version で入れる（最新の版の不具合を避ける）."""
+        text = (ROOT / "scripts" / "install-prereqs.ps1").read_text(encoding="utf-8-sig")
+        self.assertRegex(text, r'Id = "SUSE\.RancherDesktop";[^\n]*Version = "\d+\.\d+\.\d+"')
+        self.assertIn('if ($t.Version) { $wingetArgs += @("--version", $t.Version) }', text)
+        # --version を足すのは DryRun の表示より前（DryRun でも固定した版が見える）
+        self.assertLess(text.index('@("--version", $t.Version)'), text.index('[dry-run] winget "'))
+
 
 class WorkflowHardeningTest(unittest.TestCase):
     """Actions はコミット SHA で固定し、checkout は認証情報を残さない."""

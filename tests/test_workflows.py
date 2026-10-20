@@ -218,5 +218,59 @@ class ReleaseRunsTestsFirstTest(unittest.TestCase):
             self.assertNotIn("contents: write", self.release[name])
 
 
+class LatestMainsWorkflowTest(unittest.TestCase):
+    """latest-mains.yml: 週 1 回、各 main の最新どうし（repos.yaml）で setup を試し、落ちたら Issue を起こす."""
+
+    def setUp(self):
+        self.text = read(WORKFLOWS / "latest-mains.yml")
+        self.jobs = jobs(self.text)
+
+    def test_runs_weekly_and_by_hand(self):
+        self.assertRegex(self.text, r'(?m)^  schedule:\n    - cron: "\d+ \d+ \* \* [0-6]"')
+        self.assertIn("\n  workflow_dispatch:\n", self.text)
+
+    def test_uses_latest_mains_not_pinned_manifest(self):
+        code = "\n".join(ln for ln in self.text.splitlines() if not ln.lstrip().startswith("#"))
+        # SHA に固定したマニフェスト（ci-repos.yaml）を使わない（repos.yaml の既定）
+        self.assertNotRegex(code, r"--manifest|-Manifest")
+        self.assertIn("./setup.sh --only", self.jobs["setup-sh"])
+        self.assertIn("call setup.cmd -Only", self.jobs["windows"])
+        for job in ("setup-sh", "windows"):
+            with self.subTest(job=job):
+                self.assertIn("check-pins", self.jobs[job])
+                self.assertIn("check-python", self.jobs[job])
+                self.assertIn("expense-pipeline", self.jobs[job])
+
+    def test_smoke_lists_match_ci(self):
+        ci = read(WORKFLOWS / "ci.yml")
+        for key in ("SMOKE_CLIS", "SMOKE_IMPORTS"):
+            with self.subTest(key=key):
+                want = re.search(rf"(?m)^  {key}: (.+)$", ci).group(1)
+                self.assertIn(f"  {key}: {want}\n", self.text)
+
+    def test_python_repo_list_matches_manifest(self):
+        import sys
+
+        sys.path.insert(0, str(ROOT / "scripts"))
+        import bootstrap
+
+        code = re.search(r'(?m)^  LIST_PYTHON_REPOS: "(.+)"$', self.text).group(1)
+        p = subprocess.run(  # nosec B603
+            [sys.executable, "-c", code], cwd=ROOT, capture_output=True, text=True, encoding="utf-8", check=True
+        )
+        _, repos = bootstrap.load_manifest()
+        self.assertEqual(p.stdout.strip().split(","), [r.name for r in repos if r.python])
+
+    def test_failure_opens_issue_with_least_privilege(self):
+        self.assertRegex(self.text, r"(?m)^permissions:\n  contents: read\n")
+        report = self.jobs["report"]
+        self.assertIn("if: failure()", report)
+        self.assertIn("needs: [setup-sh, windows]", report)
+        self.assertIn("issues: write", report)
+        self.assertEqual(self.text.count("issues: write"), 1)
+        self.assertIn('gh api "repos/$GH_REPO/issues"', report)
+        self.assertIn("/comments", report)  # 開いている同じ題の Issue があればコメントを足す
+
+
 if __name__ == "__main__":
     unittest.main()
