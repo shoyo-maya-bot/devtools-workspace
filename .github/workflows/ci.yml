@@ -108,6 +108,9 @@ jobs:
           python scripts\bootstrap.py --manifest .github\ci-repos.yaml status
           python scripts\bootstrap.py --manifest .github\ci-repos.yaml check-python; if ($LASTEXITCODE) { exit 1 }
           python scripts\bootstrap.py --manifest .github\ci-repos.yaml check-pins; if ($LASTEXITCODE) { exit 1 }
+          # README のツールごとの requires-python の一覧が、取り出した版の pyproject.toml と合っているか
+          $env:README_FACTS_REQUIRE_CHECKOUTS = "1"
+          python -m unittest tests.test_bootstrap.ReadmeFactsTest -v; if ($LASTEXITCODE) { exit 1 }
 
       - name: Pipeline example (doc2md → fieldcheck; the sample has deliberate findings → 1)
         env:
@@ -144,6 +147,8 @@ jobs:
           "$venv/python" -c "$SMOKE_IMPORTS"
           python3 scripts/bootstrap.py --manifest .github/ci-repos.yaml check-python
           python3 scripts/bootstrap.py --manifest .github/ci-repos.yaml check-pins
+          # README のツールごとの requires-python の一覧が、取り出した版の pyproject.toml と合っているか
+          README_FACTS_REQUIRE_CHECKOUTS=1 python3 -m unittest tests.test_bootstrap.ReadmeFactsTest -v
           # 取り出した版が ci-repos.yaml の ref と同じか
           python3 - <<'PY'
           import subprocess, sys

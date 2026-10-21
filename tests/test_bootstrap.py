@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
 import re
 import shutil
 import sys
@@ -343,6 +344,86 @@ class RefTest(unittest.TestCase):
                 self.assertIn("インストールの前に止めます", text)
 
 
+class EmptyFolderTest(unittest.TestCase):
+    """第 7 回: 空のフォルダを「取得済み」とみなして install で黙って外し、終了コード 0 にしない."""
+
+    def _git(self, *args, cwd):
+        import subprocess
+
+        return subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True).stdout.strip()
+
+    def _bare(self, tmp: Path, name: str) -> dict[str, str]:
+        """tmp/o/<name>.git に pyproject.toml のある元のリポジトリを置き、cmd_clone に渡す top を返す."""
+        ident = ["-c", "user.name=t", "-c", "user.email=t@example.com"]
+        src = tmp / "src" / name
+        src.mkdir(parents=True)
+        self._git("init", "-q", "-b", "main", cwd=src)
+        (src / "pyproject.toml").write_text(f'[project]\nname = "{name}"\nversion = "1"\n', encoding="utf-8")
+        self._git("add", ".", cwd=src)
+        self._git(*ident, "commit", "-q", "-m", "1", cwd=src)
+        (tmp / "o").mkdir(exist_ok=True)
+        self._git("clone", "-q", "--bare", str(src), str(tmp / "o" / f"{name}.git"), cwd=tmp)
+        return {"org": "o", "host": tmp.as_uri()}
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.ws = self.tmp / "ws"
+        self.ws.mkdir()
+
+    def test_clone_into_empty_folder(self):
+        top = self._bare(self.tmp, "a")
+        (self.ws / "a").mkdir()  # 作っただけの空のフォルダ
+        repos = [bootstrap.Repo("a", python=True)]
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(bootstrap.cmd_clone(self.ws, top, repos, None), 0)
+        self.assertIn("clone  a（空のフォルダに取得）", out.getvalue())
+        self.assertTrue((self.ws / "a" / "pyproject.toml").is_file())
+
+    def test_clone_reports_non_git_folder(self):
+        top = self._bare(self.tmp, "a")
+        top_b = self._bare(self.tmp, "b")
+        self.assertEqual(top, top_b)
+        (self.ws / "a").mkdir()
+        (self.ws / "a" / "memo.txt").write_text("x", encoding="utf-8")
+        repos = [bootstrap.Repo("a", python=True), bootstrap.Repo("b", python=True)]
+        err = io.StringIO()
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+            self.assertEqual(bootstrap.cmd_clone(self.ws, top, repos, None), 1)
+        self.assertIn("NG     a:", err.getvalue())
+        self.assertIn("Git のリポジトリではありません", err.getvalue())
+        self.assertTrue((self.ws / "b" / ".git").exists(), "ほかのリポジトリは取得を続ける")
+
+    def test_install_stops_on_empty_folder(self):
+        (self.ws / "a").mkdir()
+        (self.ws / "b").mkdir()
+        (self.ws / "b" / "pyproject.toml").write_text('[project]\nname = "b"\n', encoding="utf-8")
+        repos = [bootstrap.Repo("a", python=True), bootstrap.Repo("b", python=True)]
+        err = io.StringIO()
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+            self.assertEqual(bootstrap.cmd_install(self.ws, repos, None, dry_run=True), 1)
+        self.assertIn("NG     a: 空のフォルダ", err.getvalue())
+
+    def test_install_stops_on_missing_subpackage(self):
+        (self.ws / "lab" / "x").mkdir(parents=True)
+        (self.ws / "lab" / "x" / "pyproject.toml").write_text('[project]\nname = "x"\n', encoding="utf-8")
+        repos = [bootstrap.Repo("lab", python=True, packages="x,y")]
+        broken, absent = bootstrap.missing_packages(self.ws, repos)
+        self.assertEqual(absent, [])
+        self.assertEqual(len(broken), 1)
+        self.assertTrue(broken[0].startswith("lab/y: pyproject.toml がありません"), broken)
+
+    def test_install_reports_absent_repo_and_continues(self):
+        (self.ws / "b").mkdir()
+        (self.ws / "b" / "pyproject.toml").write_text('[project]\nname = "b"\n', encoding="utf-8")
+        repos = [bootstrap.Repo("a", python=True), bootstrap.Repo("b", python=True)]
+        err, out = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            self.assertEqual(bootstrap.cmd_install(self.ws, repos, None, dry_run=True), 0)
+        self.assertIn("skip   a（未取得", err.getvalue())
+        self.assertIn(str(self.ws / "b"), out.getvalue())
+
+
 class SelectReposTest(unittest.TestCase):
     """--only で一部のリポジトリだけを扱う（CI や、必要なものだけ取りたいとき）."""
 
@@ -643,6 +724,10 @@ class ReadmeFactsTest(unittest.TestCase):
                 low = bootstrap.requires_python_lower_bound(project.get("requires-python", ""))
                 actual[str(project.get("name", d.name))] = ".".join(map(str, low))
         if not actual:
+            # 統合ジョブ（ci.yml・latest-mains.yml）は setup のあとに
+            # README_FACTS_REQUIRE_CHECKOUTS=1 で流す。そこでは飛ばさない
+            if os.environ.get("README_FACTS_REQUIRE_CHECKOUTS") == "1":
+                self.fail("兄弟のリポジトリが見つかりません（setup のあとに流してください）")
             self.skipTest("兄弟のリポジトリが未取得（統合ジョブで確かめる）")
         stated: dict[str, str] = {}
         line = re.search(r"`requires-python` の下限はそろっていません: (.*)", self.readme)
