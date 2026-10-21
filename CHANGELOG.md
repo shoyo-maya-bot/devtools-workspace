@@ -3,6 +3,18 @@
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/)、版は [SemVer](https://semver.org/lang/ja/) に従います。
 
 
+## 2026-10-22 doc-to-markdown の Python 3.11 以上への追随、空のフォルダを黙って外さない
+
+- `.github/ci-repos.yaml`: doc-to-markdown を 28ee561（`requires-python = ">=3.11"`）に上げた。ほかのリポジトリの ref はそのまま（固定 SHA はそろっている）
+- README: ツールごとの `requires-python` の一覧で、doc-to-markdown を 3.10 から 3.11 に移した
+- 統合 CI（`ci.yml` の setup-sh・windows、`latest-mains.yml`）: setup のあとに `ReadmeFactsTest` を、兄弟のリポジトリが無ければ失敗にする設定
+  （`README_FACTS_REQUIRE_CHECKOUTS=1`）で流す。これまで README の一覧と実物の照合は兄弟のリポジトリが無い単体テストの段で飛んでいて、CI では一度も確かめていなかった
+- `bootstrap.py clone`: 空のフォルダを「取得済み」とみなさず、そのまま clone する。中身があって Git のリポジトリでないフォルダは知らせて終了コード 1（ほかの取得は続ける）
+- `bootstrap.py install`: フォルダはあるのに `pyproject.toml` が無い Python のリポジトリ（空のフォルダなど）を黙って外して 0 で終わっていたのを、理由を表示して 1 で止める。
+  未取得のリポジトリは「未取得」と表示して飛ばす（終了コードはこれまでどおり）
+- docs/ARCHITECTURE.md: ruff の設定の説明（line-length・Python の版）を実際の各リポジトリの値に合わせた
+- README: macOS ランナーが割り当てられずに cancelled になったときの扱いを書いた
+
 ## 2026-10-21 最新 main の組み合わせの週 1 回の確認、パイプライン例の終了コード、winget の版の固定
 
 - `.github/workflows/latest-mains.yml`（新規）: 週 1 回（月曜）と手動で、`repos.yaml` の Python のリポジトリを各 main の最新どうしで

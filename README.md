@@ -139,7 +139,7 @@ VS Code で `devtools.code-workspace` を開くと全リポジトリを 1 画面
 Python の CLI は `-f json` の機械可読レポート（[仕様](https://github.com/shoyo-maya-bot/devtools-common/blob/main/docs/REPORT_FORMAT.md)）と、
 そろった終了コード（0 問題なし / 1 指摘あり / 2 前提の誤り / 3 実行時エラー）を返します。
 Python の版: `setup`（一括インストール）は **3.12 以上** が要ります（各ツールの `requires-python` の下限のうち最も高いもの）。
-ツールごとの `requires-python` の下限はそろっていません: 3.10（devtools-common・doc-to-markdown・design-diff・spec-trace）、3.11（auto-review・devtools-mcp・review-platform）、3.12（office-review・quality-analytics・office-replace・backlog-report・slack-agenda-bot）（`bootstrap.py check-python` で setup の下限と矛盾しないことを確かめます）。
+ツールごとの `requires-python` の下限はそろっていません: 3.10（devtools-common・design-diff・spec-trace）、3.11（doc-to-markdown・auto-review・devtools-mcp・review-platform）、3.12（office-review・quality-analytics・office-replace・backlog-report・slack-agenda-bot）（`bootstrap.py check-python` で setup の下限と矛盾しないことを確かめます）。
 共通 CI（`python-ci.yml`）の既定は ubuntu で 3.10 と 3.12、Windows で 3.12 です（呼び出し側は `python-versions` で変えられます）。
 
 ## 開発する（全リポをローカルに並べる）
@@ -168,6 +168,9 @@ pip が別の理由で失敗したときも、トレースバックではなく�
 Python のパッケージがサブフォルダにあるリポジトリ（agent-lab の `auto-review`・`mcp-server`、ai-coding の `tools/spec-trace`）は、repos.yaml の `packages:` に相対パスを書きます。
 ほかのツールが URL で固定しているパッケージ（review-platform が固定する auto-review、各ツールが固定する devtools-common）は、既定の `install` では手元の checkout を入れず、固定した版を使います。
 
+`clone` は、取得済み（`.git` がある）のリポジトリを飛ばし、空のフォルダにはそのまま clone します。中身があって Git のリポジトリでないフォルダがあれば、知らせて終了コード 1 にします（ほかのリポジトリの取得は続ける）。
+`install` は、未取得の Python のリポジトリを「未取得」と表示して飛ばし、フォルダはあるのに `pyproject.toml` が無いもの（空のフォルダ・`packages:` のサブフォルダが無いものなど）があれば、黙って外さずに終了コード 1 で止めます。
+
 `clone` / `pull` は既定ブランチを取り出します。repos.yaml の項目に `ref:`（ブランチ・タグ・コミット SHA）を書くと、そのリポジトリはその ref を取り出します。
 マニフェストの行末の ` # コメント` は除きます（`"…"`・`'…'` で囲んだ値の中の `#` は値の一部）。読めない行・知らない項目・閉じていない引用符は、黙って読み飛ばさず、ファイル名と行番号を表示して終了コード 2 で止まります。
 別のマニフェストを使うときは `bootstrap.py --manifest <ファイル>`（`setup.sh --manifest`・`setup.cmd -Manifest`）を渡します。
@@ -183,7 +186,7 @@ Python のパッケージがサブフォルダにあるリポジトリ（agent-l
 | 単体テストが Windows でも通るか | `python -m unittest discover -s tests` |
 | PowerShell のスクリプトに誤りがないか | PSScriptAnalyzer（Error と Warning。色付き表示に使っている `Write-Host` の警告だけは対象外） |
 | `install-prereqs.cmd` が動くか | `-Check`（足りないものがあれば終了コード 1 になるのは正常。2 以上なら失敗）と `-DryRun` |
-| `setup.cmd` で全 Python ツールを取得・インストールできるか | `setup.cmd -Manifest .github\ci-repos.yaml` を 2 回（2 回目は取得済みのものを最新にする流れ）。そのあと各 CLI の `--help`、全パッケージの import、`bootstrap.py check-python`・`check-pins`（setup の中でも check-pins を流す） |
+| `setup.cmd` で全 Python ツールを取得・インストールできるか | `setup.cmd -Manifest .github\ci-repos.yaml` を 2 回（2 回目は取得済みのものを最新にする流れ）。そのあと各 CLI の `--help`、全パッケージの import、`bootstrap.py check-python`・`check-pins`（setup の中でも check-pins を流す）、README のツールごとの `requires-python` の一覧が取り出した版と合うか（`ReadmeFactsTest`） |
 | `setup.sh` で取得・インストールできるか（macOS・Linux） | `setup-sh` ジョブ（ubuntu-latest と macos-latest）で同じことをし、取り出した版が `ci-repos.yaml` の SHA と同じかも確かめる |
 | パイプライン例が動くか | setup のあと `examples/expense-pipeline.sh`（setup-sh）・`expense-pipeline.ps1`（windows）を 1 回流し、終了コード 1（見本の不整合を指摘）とレポートができることを確かめる |
 | 各リポジトリの main の最新どうしで動くか | 別のワークフロー `latest-mains.yml`（週 1 回の月曜と手動。ubuntu と Windows）で、`ci-repos.yaml` を使わず `repos.yaml` の Python のリポジトリを各 main の最新で setup し、上と同じ確認をする。落ちたら Issue を起こす（同じ題の Issue が開いていればコメントを足す） |
@@ -222,6 +225,7 @@ checkout は `persist-credentials: false` にして、認証情報をランナ�
 `setup.cmd` は 3.12 以上の Python を探して使います。日本語の出力で止まらないよう、Python の入出力を UTF-8 にしています。
 
 確かめていないこと: winget で実際にインストールすること（ランナーにはすでに入っているものが多く、Rancher Desktop・WSL2 は再起動や仮想化が要るため）、日本語版 Windows（cp932）の画面での表示、Python でないリポジトリ（slide-tool・learning-materials など）の取得。各リポジトリの main の最新どうしの組み合わせは PR の CI では確かめず（`ci-repos.yaml` の SHA で確かめる）、週 1 回の `latest-mains.yml` で確かめる。
+`setup-sh (macos-latest)` は GitHub の macOS（arm64）ランナーが混むと長く待たされ、ランナーを割り当てられずに cancelled になることがあります（ジョブのログが無く「The job was not acquired by Runner」と出る）。これはテストの失敗ではないので、そのジョブだけを 1 回再実行します。
 
 ## 初期設定チェックリスト（組織に導入するとき）
 

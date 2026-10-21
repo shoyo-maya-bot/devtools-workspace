@@ -10,10 +10,13 @@
     └── ...
 
 サブコマンド:
-    clone     マニフェスト（repos.yaml）のリポジトリのうち、未取得のものを clone
+    clone     マニフェスト（repos.yaml）のリポジトリのうち、未取得のものを clone（空のフォルダにも clone する。
+              中身があって Git のリポジトリでないフォルダは知らせて 1）
     pull      取得済みのリポジトリを git pull --ff-only
     status    各リポジトリのブランチ・未コミット変更・最新タグ
-    install   仮想環境を作り、Python のツールを入れる（各ツールが固定した devtools-common を使う）
+    install   仮想環境を作り、Python のツールを入れる（各ツールが固定した devtools-common を使う）。
+              未取得のリポジトリは知らせて飛ばす。フォルダはあるのに pyproject.toml が無いもの
+              （空のフォルダなど）があれば、黙って外さずに 1
               --dev を付けると、devtools-common もローカルの checkout を editable で入れる（開発者向け）
     list      ツール一覧（Markdown の表）
     check-python  取得済みの Python パッケージの requires-python と、setup が求める Python の版（3.12 以上）が
@@ -179,19 +182,60 @@ def cmd_clone(root: Path, top: dict[str, str], repos: list[Repo], org: str | Non
     if not org or org.startswith("<"):
         raise SystemExit("--org を指定するか、repos.yaml の org を設定してください")
     host = top.get("host", "https://github.com").rstrip("/")
+    failed = 0
     for r in repos:
         dest = root / r.name
-        if dest.exists():
+        if (dest / ".git").exists():
             print(f"skip   {r.name}（取得済み" + ("。ref には pull でそろえる）" if r.ref else "）"))
             continue
-        print(f"clone  {r.name}" + (f" @ {r.ref}" if r.ref else ""))
+        if dest.exists() and not _is_empty_dir(dest):
+            # 中身のあるフォルダを「取得済み」とみなすと、install が黙ってそのリポジトリを外してしまう
+            failed += 1
+            print(
+                f"NG     {r.name}: {dest} はありますが Git のリポジトリではありません"
+                "（中身を確かめて、別の場所へ移すか消してから、もう一度実行してください）",
+                file=sys.stderr,
+            )
+            continue
+        # 空のフォルダ（作っただけ・clone の途中で止まったもの）には、そのまま clone する
+        into_empty = "（空のフォルダに取得）" if dest.exists() else ""
+        print(f"clone  {r.name}" + (f" @ {r.ref}" if r.ref else "") + into_empty)
         git(["clone", f"{host}/{org}/{r.name}.git", str(dest)])
         if r.ref:
             p = subprocess.run(["git", "checkout", "-q", r.ref], cwd=dest, capture_output=True, text=True, check=False)
             if p.returncode != 0:
                 # clone は残る（次の setup では skip される）が、install は HEAD が ref と違うリポジトリがあれば止まる
                 raise SystemExit(f"clone  {r.name}: {r.ref} を取り出せませんでした: {p.stderr.strip()}")
-    return 0
+    return 1 if failed else 0
+
+
+def _is_empty_dir(d: Path) -> bool:
+    return d.is_dir() and next(d.iterdir(), None) is None
+
+
+def missing_packages(root: Path, repos: list[Repo]) -> tuple[list[str], list[str]]:
+    """Python のリポジトリのうち、入れられないもの: (フォルダはあるが pyproject.toml が無いもの, 未取得のもの).
+
+    package_dirs() は pyproject.toml のあるフォルダだけを返すので、空のフォルダや別物のフォルダを
+    そのまま install に渡すと、そのリポジトリが黙って外れて終了コード 0 になってしまう。install の前にこれで確かめる。
+    """
+    broken: list[str] = []
+    absent: list[str] = []
+    for r in repos:
+        if not r.python:
+            continue
+        d = root / r.name
+        if not d.exists():
+            absent.append(r.name)
+            continue
+        rels = [s.strip() for s in r.packages.split(",") if s.strip()] or ["."]
+        for rel in rels:
+            pkg = d if rel == "." else d / rel
+            if not (pkg / "pyproject.toml").is_file():
+                label = r.name if rel == "." else f"{r.name}/{rel}"
+                why = "空のフォルダ" if _is_empty_dir(d) else "pyproject.toml がありません"
+                broken.append(f"{label}: {why}（{pkg}）")
+    return broken, absent
 
 
 def cmd_pull(root: Path, repos: list[Repo]) -> int:
@@ -588,6 +632,18 @@ def cmd_install(root: Path, repos: list[Repo], venv_dir: Path | None, dry_run: b
         print(
             "マニフェストの ref にそろっていないリポジトリがあるため、インストールを止めました。"
             "手元の変更を確かめてから `bootstrap.py pull` で ref にそろえ、もう一度実行してください",
+            file=sys.stderr,
+        )
+        return 1
+    broken, absent = missing_packages(root, repos)
+    for name in absent:
+        print(f"skip   {name}（未取得。入れるには先に `bootstrap.py clone`）", file=sys.stderr)
+    if broken:
+        for b in broken:
+            print(f"NG     {b}", file=sys.stderr)
+        print(
+            "取得できていない Python のリポジトリがあるため、インストールを止めました。"
+            "空のフォルダなら消してから `bootstrap.py clone`（setup をやり直す）で取得してください",
             file=sys.stderr,
         )
         return 1

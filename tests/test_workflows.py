@@ -240,6 +240,18 @@ class LatestMainsWorkflowTest(unittest.TestCase):
                 self.assertIn("check-pins", self.jobs[job])
                 self.assertIn("check-python", self.jobs[job])
                 self.assertIn("expense-pipeline", self.jobs[job])
+                self.assertIn("README_FACTS_REQUIRE_CHECKOUTS", self.jobs[job])
+                self.assertIn("unittest tests.test_bootstrap.ReadmeFactsTest", self.jobs[job])
+
+    def test_ci_integration_jobs_check_readme_facts_after_setup(self):
+        """第 7 回: README のツールごとの requires-python の一覧は、兄弟のリポジトリがある統合ジョブで確かめる
+        （単体テストの段では未取得で飛ぶため、setup のあとに飛ばさない設定で流す）."""
+        ci = jobs(read(WORKFLOWS / "ci.yml"))
+        for job in ("setup-sh", "windows"):
+            with self.subTest(job=job):
+                body = ci[job]
+                self.assertIn("README_FACTS_REQUIRE_CHECKOUTS", body)
+                self.assertLess(body.index("setup."), body.index("unittest tests.test_bootstrap.ReadmeFactsTest"))
 
     def test_smoke_lists_match_ci(self):
         ci = read(WORKFLOWS / "ci.yml")

@@ -22,7 +22,7 @@ repos:
     role: tool
     python: true
     cli: doc2md
-    ref: a10ad8737ccb6bac6271ef67cef4d9c9ff0edfce
+    ref: 28ee5618307d69c34ea03d22c859cf5a58b43f93
 
   - name: office-review
     role: tool
