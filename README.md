@@ -21,7 +21,7 @@
 | 進捗レポート | [backlog-report](https://github.com/shoyo-maya-bot/backlog-report) | `backlog-report` | Backlog の遅延・担当者別・ガント・バーンダウンを Slack と Wiki へ |
 | 会議のアジェンダ | [slack-agenda-bot](https://github.com/shoyo-maya-bot/slack-agenda-bot) | – | `/agenda` で議題を集め、Canvas にまとめる Slack ボット |
 | スライド | [slide-tool](https://github.com/shoyo-maya-bot/slide-tool) | `npm run` | Marp + Tailwind のテーマ・レイアウト 20 種・はみ出しチェック・PDF / PPTX |
-| 教材 | [learning-materials](https://github.com/shoyo-maya-bot/learning-materials) | – | 環境構築・基礎・実ソース読解（演習と解答）・API・非同期・設計品質・クラウドの全 62 章 |
+| 教材 | [learning-materials](https://github.com/shoyo-maya-bot/learning-materials) | – | 環境構築・基礎・実ソース読解（演習と解答）・非同期・API・設計品質・クラウド・マネジメントの全 60 章と付録（2026-10 時点） |
 | 実験 | [agent-lab](https://github.com/shoyo-maya-bot/agent-lab) | – | AI エージェントに任せられる範囲の実験（MCP・自律度・マルチモデルの相互レビュー）。設計の段階 |
 | 基盤 | [review-platform](https://github.com/shoyo-maya-bot/review-platform) | – | 設計書とコードの差分の AI レビュー基盤（API・MCP、ローカル・AWS・Azure、Terraform）。クラウドと MCP の学習の題材 |
 | 土台 | [devtools-common](https://github.com/shoyo-maya-bot/devtools-common) | – | 共有ライブラリ（CLI の終了コード・レポート形式・ログ・一時ファイル・HTTP） |
@@ -52,6 +52,8 @@ MCP などの追加設定は不要です。**使うリポジトリを 1 つ clon
    - `install-prereqs.cmd -DryRun` で、何を入れるかを表示するだけにできる（確認を出さず、何も変えない）
    - 別の版の Java（8 など）が入っていても消さずに 17 を追加する。WSL2 を有効にしたときは再起動が要る
    - Rancher Desktop 1.23.1 / 1.24.0 の不具合（docker が `timed out dialing Hyper-V socket` になる）の回避策も置く（[rancher-desktop#10780](https://github.com/rancher-sandbox/rancher-desktop/issues/10780)）
+   - winget で入れる版: Rancher Desktop は回避策を確かめた **1.24.0 に固定**（版ごとに docker の動きが変わるため。`scripts/install-prereqs.ps1` の `Version`）。
+     Python・Corretto は ID でメジャー版（3.12・17）を固定、Git・Node.js LTS・VS Code は脆弱性の修正を取り込むため最新を入れる
 1. 使いたいリポジトリを clone する（Python のツールは、各ツールが `pyproject.toml` でコミット SHA を固定した devtools-common を、セットアップのときに GitHub から取ってきます。
    ただし **doc-to-markdown の `setup.cmd`・`setup.sh`（`scripts/install_deps.py`）は、隣のフォルダに devtools-common があればそれを editable で入れて固定の代わりに使います**（GitHub の認証が無くても入れられるようにするため。隣の checkout がどのコミットかはそのまま使われます）。
    固定した版で入れたいときは、隣に devtools-common を置かないか、下の「全部まとめて使う」の `setup`（各ツールの固定 SHA を使う）を使います。
@@ -118,6 +120,20 @@ VS Code で `devtools.code-workspace` を開くと全リポジトリを 1 画面
 
 見本の入力にはわざと不整合を入れてあるので、終了コードは 1（指摘あり）です。統合 CI（`ci.yml` の setup-sh・windows）でも setup のあとに 1 回動かしています。
 
+終了コードで、どの段で何が起きたかを区別します（`.sh`・`.ps1` で同じ）。
+
+| コード | 意味 |
+|---|---|
+| `0` | 変換の警告なし・指摘なし |
+| `1` | fieldcheck の指摘あり（変換の警告なし） |
+| `2` | 前提の誤り（ツール・入力が無い、doc2md・fieldcheck の引数・入力・ルールの誤り） |
+| `3` | 実行時エラー（doc2md・fieldcheck の想定外のエラー、変換結果の Markdown ができなかった） |
+| `4` | doc2md `--strict` の変換の警告あり（変換ロスなど）・指摘なし。fieldcheck は流している |
+| `5` | 変換の警告あり・指摘あり |
+
+`4`・`5` のときは、fieldcheck の結果を信じる前に `<出力先>/<名前>.convert.json` の警告を見て、元ファイルと突き合わせてください
+（以前は変換の警告で `1` を返して fieldcheck を流さず、指摘ありと区別できませんでした）。
+
 ### CLI の共通の約束
 
 Python の CLI は `-f json` の機械可読レポート（[仕様](https://github.com/shoyo-maya-bot/devtools-common/blob/main/docs/REPORT_FORMAT.md)）と、
@@ -170,6 +186,7 @@ Python のパッケージがサブフォルダにあるリポジトリ（agent-l
 | `setup.cmd` で全 Python ツールを取得・インストールできるか | `setup.cmd -Manifest .github\ci-repos.yaml` を 2 回（2 回目は取得済みのものを最新にする流れ）。そのあと各 CLI の `--help`、全パッケージの import、`bootstrap.py check-python`・`check-pins`（setup の中でも check-pins を流す） |
 | `setup.sh` で取得・インストールできるか（macOS・Linux） | `setup-sh` ジョブ（ubuntu-latest と macos-latest）で同じことをし、取り出した版が `ci-repos.yaml` の SHA と同じかも確かめる |
 | パイプライン例が動くか | setup のあと `examples/expense-pipeline.sh`（setup-sh）・`expense-pipeline.ps1`（windows）を 1 回流し、終了コード 1（見本の不整合を指摘）とレポートができることを確かめる |
+| 各リポジトリの main の最新どうしで動くか | 別のワークフロー `latest-mains.yml`（週 1 回の月曜と手動。ubuntu と Windows）で、`ci-repos.yaml` を使わず `repos.yaml` の Python のリポジトリを各 main の最新で setup し、上と同じ確認をする。落ちたら Issue を起こす（同じ題の Issue が開いていればコメントを足す） |
 | 古い Python で分かりやすく止まるか | 単体テスト（`tests/test_python_version.py`。3.9 のふりをして `bootstrap.py` と `setup.sh` を動かす） |
 
 統合のジョブが取り出す他のリポジトリ（repos.yaml の `python: true` の全リポジトリ。テストで確かめる）は、[.github/ci-repos.yaml](.github/ci-repos.yaml) の `ref:` で **コミット SHA に固定** しています。
@@ -204,7 +221,7 @@ CI で使う Actions はコミット SHA で固定しています（横にバー
 checkout は `persist-credentials: false` にして、認証情報をランナーに残しません。どちらも単体テストで確かめています。
 `setup.cmd` は 3.12 以上の Python を探して使います。日本語の出力で止まらないよう、Python の入出力を UTF-8 にしています。
 
-確かめていないこと: winget で実際にインストールすること（ランナーにはすでに入っているものが多く、Rancher Desktop・WSL2 は再起動や仮想化が要るため）、日本語版 Windows（cp932）の画面での表示、Python でないリポジトリ（slide-tool・learning-materials など）の取得、各リポジトリの main の最新どうしの組み合わせ（CI は `ci-repos.yaml` の SHA で確かめる）。
+確かめていないこと: winget で実際にインストールすること（ランナーにはすでに入っているものが多く、Rancher Desktop・WSL2 は再起動や仮想化が要るため）、日本語版 Windows（cp932）の画面での表示、Python でないリポジトリ（slide-tool・learning-materials など）の取得。各リポジトリの main の最新どうしの組み合わせは PR の CI では確かめず（`ci-repos.yaml` の SHA で確かめる）、週 1 回の `latest-mains.yml` で確かめる。
 
 ## 初期設定チェックリスト（組織に導入するとき）
 

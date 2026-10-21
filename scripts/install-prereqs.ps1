@@ -67,6 +67,10 @@ function Test-WingetInstalled([string]$id) {
 }
 
 # Test: 入っているか（$true / $false）。Note: 入っていないときの補足
+# Version: winget で入れる版の固定（winget install --version）。書かなければ winget の最新の版を入れる.
+#   - Python・Corretto は ID でメジャー版（3.12・17）を固定している. Git・Node.js LTS・VS Code は脆弱性の修正を取り込むため最新を入れる
+#   - Rancher Desktop は版ごとに docker の動きが変わり、不具合の版（1.23.1・1.24.0. 下の回避策）もあるので、回避策を確かめた版に固定する.
+#     修正版が出て確かめたら、Version を上げて下の回避策を消す（rancher-sandbox/rancher-desktop#10780）
 $tools = @(
     @{ Name = "Git";                Id = "Git.Git";                    Why = "リポジトリの取得";
        Test = { [bool](Get-Command git -ErrorAction SilentlyContinue) } },
@@ -79,7 +83,7 @@ $tools = @(
     @{ Name = "VS Code";            Id = "Microsoft.VisualStudioCode"; Why = "エディタと Copilot";
        Test = { [bool](Get-Command code -ErrorAction SilentlyContinue) } },
     # Rancher Desktop はマシン全体に入れる版しかないため --scope machine が要る（付けないと「適用できるインストーラーがない」で失敗する）
-    @{ Name = "Rancher Desktop";    Id = "SUSE.RancherDesktop";        Why = "DB と S3 エミュレータ（docker compose）"; Scope = "machine";
+    @{ Name = "Rancher Desktop";    Id = "SUSE.RancherDesktop";        Why = "DB と S3 エミュレータ（docker compose）"; Scope = "machine"; Version = "1.24.0";
        Test = { [bool](Get-Command rdctl -ErrorAction SilentlyContinue) -or (Test-WingetInstalled "SUSE.RancherDesktop") } }
 )
 $extensions = @("vscjava.vscode-java-pack", "vmware.vscode-boot-dev-pack", "GitHub.copilot-chat", "ms-python.python")
@@ -120,10 +124,12 @@ if ($missing.Count -eq 0 -and $wsl.Ok) {
         Write-Host "=== $($t.Name) を入れます ==="
         $wingetArgs = @("install", "--id", $t.Id, "--exact", "--silent", "--accept-package-agreements", "--accept-source-agreements")
         if ($t.Scope) { $wingetArgs += @("--scope", $t.Scope) }
+        if ($t.Version) { $wingetArgs += @("--version", $t.Version) }
         if ($DryRun) { Write-Host ("[dry-run] winget " + ($wingetArgs -join " ")); continue }
         & winget @wingetArgs
         if ($LASTEXITCODE -ne 0) {
             Write-Host ("{0} のインストールに失敗しました（終了コード 0x{1:X8}）。" -f $t.Name, $LASTEXITCODE) -ForegroundColor Yellow
+            if ($t.Version) { Write-Host "  固定した版 $($t.Version) が winget に無いときは、winget show --id $($t.Id) --versions で入れられる版を確かめてください。" -ForegroundColor Yellow }
             $failed += $t.Name
         }
     }

@@ -14,11 +14,13 @@ SCRIPT = ROOT / "examples" / "expense-pipeline.sh"
 PS1 = ROOT / "examples" / "expense-pipeline.ps1"
 HAVE_BASH = os.name != "nt" and shutil.which("bash") is not None
 
-# 呼ばれた引数を記録する偽の doc2md / fieldcheck（fieldcheck は指摘ありの 1 を返す）
+# 呼ばれた引数を記録する偽の doc2md / fieldcheck.
+# 終了コードは D2M_RC（既定 0）・FC_RC（既定 1 = 指摘あり）、D2M_MD を付けると doc2md がその Markdown を書く
 STUB = """#!/usr/bin/env bash
 echo "$(basename "$0") $*" >> "$STUB_LOG"
-if [ "$(basename "$0")" = fieldcheck ]; then exit 1; fi
-exit 0
+if [ "$(basename "$0")" = fieldcheck ]; then exit "${FC_RC:-1}"; fi
+if [ -n "${D2M_MD:-}" ]; then mkdir -p "$(dirname "$D2M_MD")"; echo "# x" > "$D2M_MD"; fi
+exit "${D2M_RC:-0}"
 """
 
 
@@ -40,7 +42,7 @@ class PipelineScriptTest(unittest.TestCase):
         # PATH には bash の基本コマンドだけを置き、doc2md・fieldcheck は無い状態にする
         self.bin = self.tmp / "sysbin"
         self.bin.mkdir()
-        for tool in ("bash", "dirname", "basename", "cat", "mkdir"):
+        for tool in ("bash", "dirname", "basename", "cat", "mkdir", "rm"):
             found = shutil.which(tool)
             if found:
                 (self.bin / tool).symlink_to(found)
@@ -89,6 +91,63 @@ class PipelineScriptTest(unittest.TestCase):
         p = self._run()
         self.assertEqual(p.returncode, 1, p.stderr)
 
+    # 終了コードで、どの段で何が起きたかを区別する（doc2md --strict の警告を fieldcheck の指摘と混ぜない）
+    def _calls(self) -> list[str]:
+        return self.log.read_text(encoding="utf-8").splitlines() if self.log.exists() else []
+
+    def _md(self) -> Path:
+        return self.tmp / "out" / "expense-list.md"
+
+    def test_conversion_warning_still_runs_fieldcheck_and_returns_5_with_findings(self):
+        self._stub(self.tmp / ".venv" / "bin")
+        p = self._run(D2M_RC="1", D2M_MD=str(self._md()))
+        self.assertEqual(p.returncode, 5, p.stderr)
+        self.assertIn("変換の警告があります", p.stderr)
+        self.assertEqual(sum(c.startswith("fieldcheck validate ") for c in self._calls()), 2)
+
+    def test_conversion_warning_without_findings_returns_4(self):
+        self._stub(self.tmp / ".venv" / "bin")
+        p = self._run(D2M_RC="1", D2M_MD=str(self._md()), FC_RC="0")
+        self.assertEqual(p.returncode, 4, p.stderr)
+
+    def test_no_warning_no_findings_returns_0(self):
+        self._stub(self.tmp / ".venv" / "bin")
+        p = self._run(FC_RC="0")
+        self.assertEqual(p.returncode, 0, p.stderr)
+
+    def test_conversion_failure_without_markdown_returns_3_and_skips_fieldcheck(self):
+        self._stub(self.tmp / ".venv" / "bin")
+        p = self._run(D2M_RC="1")
+        self.assertEqual(p.returncode, 3, p.stderr)
+        self.assertIn("変換できませんでした", p.stderr)
+        self.assertFalse(any(c.startswith("fieldcheck") for c in self._calls()))
+
+    def test_stale_markdown_from_previous_run_is_not_validated(self):
+        self._md().parent.mkdir(parents=True)
+        self._md().write_text("# 前回の出力", encoding="utf-8")
+        self._stub(self.tmp / ".venv" / "bin")
+        p = self._run(D2M_RC="1")
+        self.assertEqual(p.returncode, 3, p.stderr)
+        self.assertFalse(self._md().exists())
+        self.assertFalse(any(c.startswith("fieldcheck") for c in self._calls()))
+
+    def test_doc2md_input_error_returns_2_and_runtime_error_returns_3(self):
+        self._stub(self.tmp / ".venv" / "bin")
+        for d2m, want in (("2", 2), ("3", 3), ("9", 3)):
+            with self.subTest(doc2md=d2m):
+                self.log.unlink(missing_ok=True)
+                p = self._run(D2M_RC=d2m, D2M_MD=str(self._md()))
+                self.assertEqual(p.returncode, want, p.stderr)
+                self.assertFalse(any(c.startswith("fieldcheck") for c in self._calls()))
+
+    def test_fieldcheck_errors_are_not_reported_as_findings(self):
+        self._stub(self.tmp / ".venv" / "bin")
+        for fc, want in (("2", 2), ("3", 3)):
+            for d2m in ("0", "1"):
+                with self.subTest(fieldcheck=fc, doc2md=d2m):
+                    p = self._run(FC_RC=fc, D2M_RC=d2m, D2M_MD=str(self._md()))
+                    self.assertEqual(p.returncode, want, p.stderr)
+
 
 class PowerShellPipelineTest(unittest.TestCase):
     def test_ps1_looks_in_sibling_venv(self):
@@ -98,6 +157,21 @@ class PowerShellPipelineTest(unittest.TestCase):
         self.assertIn("exit 2", text)
         self.assertIn("& $Doc2md", text)
         self.assertIn("& $Fieldcheck validate", text)
+        # 終了コードは .sh と同じ（変換の警告は 4・5、前回の Markdown は消してから変換）
+        self.assertIn("exit (4 + $rc)", text)
+        self.assertIn("Remove-Item -LiteralPath $Md", text)
+        self.assertIn("exit 3", text)
+
+    def test_exit_codes_are_documented_the_same_in_both_scripts_and_readme(self):
+        sh = SCRIPT.read_text(encoding="utf-8")
+        ps1 = PS1.read_text(encoding="utf-8-sig")
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        readme = readme.split("### パイプライン例", 1)[1].split("\n### ", 1)[0]
+        for code in ("4 doc2md --strict の変換の警告あり", "5 "):
+            self.assertIn(code, sh)
+        self.assertIn("4 doc2md --strict の変換の警告あり・指摘なし", ps1)
+        for code in ("`4`", "`5`", "`3`", "`2`"):
+            self.assertIn(code, readme)
 
 
 class ReadmeAndCiTest(unittest.TestCase):

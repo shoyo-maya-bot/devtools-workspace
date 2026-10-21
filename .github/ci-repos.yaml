@@ -10,62 +10,62 @@ repos:
   - name: devtools-common
     role: library
     python: true
-    ref: 6a263b894409a19a186d2b3b0b41da998174c0d6
+    ref: 04f3915ab696d9312f1526dd11d5178dcd2601eb
 
   - name: ai-coding
     role: guide
     python: true
     packages: tools/spec-trace
-    ref: 4c11d68f670a3e926397a3a499139ec0ba39148a
+    ref: b31351842c4b6d6f3149783bb09f8cd2b33de884
 
   - name: doc-to-markdown
     role: tool
     python: true
     cli: doc2md
-    ref: 5a1e16c97d08049abdd4805f445ca8d15d1207c0
+    ref: a10ad8737ccb6bac6271ef67cef4d9c9ff0edfce
 
   - name: office-review
     role: tool
     python: true
     cli: harness
-    ref: 7baa571e8da46d23388ec9b4437eeae563810d3b
+    ref: acbe9ad1c67a4c1bc19638d6bf9c6b705bdc7407
 
   - name: design-diff
     role: tool
     python: true
     cli: design-diff
-    ref: 20ca1cb22aac4076734794e6bfdbab78db289185
+    ref: 79587dab5678e42fcb0318e052889c698305eb74
 
   - name: quality-analytics
     role: tool
     python: true
     cli: qa
-    ref: 23bfa23225df308c3b47c6d838bcd3a4dfcfdde5
+    ref: 676d0fce5cb9ef5ee980786de9bdf4075a3569f6
 
   - name: office-replace
     role: tool
     python: true
     cli: office-replace
-    ref: 1e328a99651835683dd60f1044156f2af41237d0
+    ref: 2e6b62a1bdbd9c49902a5d8dace2964f179e0252
 
   - name: backlog-report
     role: tool
     python: true
     cli: backlog-report
-    ref: ddd5afbb827825811295f8cdac5e2064e795917f
+    ref: 3d7223492afa7c6ae7be75a649ecc3c5d104d620
 
   - name: slack-agenda-bot
     role: app
     python: true
-    ref: bebe1240aeddcc2f9f2a05f433d71091a11fa738
+    ref: 2fa3c87be9ae5c65710cc2f84c2e842e0b004900
 
   - name: agent-lab
     role: lab
     python: true
     packages: auto-review,mcp-server
-    ref: d4bc1c9386f60324cc3f092261184040edfa3c3a
+    ref: 08e9689d111007d21cc16179edb8db70ecbe6e88
 
   - name: review-platform
     role: platform
     python: true
-    ref: 9c62c8916b43bb35bd6452071a6ec028be882500
+    ref: e25fed378b8331a5b87194f518924cef2bc89e6e

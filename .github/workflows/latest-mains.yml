@@ -1,0 +1,139 @@
+name: latest-mains
+
+# 週 1 回、repos.yaml の Python のリポジトリを **各リポジトリの main の最新どうし** で取り出し、利用者と同じ setup（ref の固定なし）で
+# 一括インストール・各 CLI の --help・import・check-python・check-pins・パイプライン例を流す。
+# ci.yml の統合ジョブは .github/ci-repos.yaml の SHA に固定しているので（PR の結果を他のリポジトリの変更で変えないため）、
+# main どうしの食い違い（devtools-common などの固定 SHA のずれ・requires-python・依存の衝突）はここで見つける。
+# 失敗したら Issue を起こす（同じ題の Issue が開いていれば、そこにコメントを足す）。手で動かすときは Actions の画面から（workflow_dispatch）
+on:
+  schedule:
+    - cron: "17 0 * * 1" # 毎週月曜 09:17（日本時間）
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: latest-mains
+  cancel-in-progress: false
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  # ci.yml と同じ（tests/test_workflows.py で一致を確かめる）
+  SMOKE_CLIS: "doc2md figspec harness fieldcheck design-diff qa office-replace backlog-report spec-trace auto-review review-platform"
+  SMOKE_IMPORTS: "import devtools_common, doc_to_markdown, review_harness, field_validation, design_diff, quality_analytics, office_replace, backlog_report, agenda_bot.app, spec_trace, devtools_mcp.server, auto_review, review_platform; print('imports ok')"
+  # repos.yaml の python: true のリポジトリ（ref は書かないので各 main の最新）を取り出す
+  LIST_PYTHON_REPOS: "import sys; sys.path.insert(0, 'scripts'); import bootstrap; _, rs = bootstrap.load_manifest(); print(','.join(r.name for r in rs if r.python))"
+
+jobs:
+  setup-sh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: setup.sh — repos.yaml の Python のリポジトリを各 main の最新で
+        run: |
+          ONLY="$(python3 -c "$LIST_PYTHON_REPOS")"
+          echo "ONLY=$ONLY" >> "$GITHUB_ENV"
+          ./setup.sh --only "$ONLY"
+      - name: 取り出した版（Job Summary）
+        if: always()
+        run: |
+          {
+            echo "### 取り出した main の版（ubuntu）"
+            echo
+            for r in ${ONLY//,/ }; do
+              [ -d "../$r/.git" ] && echo "- $r \`$(git -C "../$r" rev-parse HEAD)\`"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Smoke test the installed tools
+        run: |
+          venv="$(dirname "$PWD")/.venv/bin"
+          for cli in $SMOKE_CLIS; do "$venv/$cli" --help >/dev/null; echo "ok $cli"; done
+          "$venv/python" -c "$SMOKE_IMPORTS"
+          python3 scripts/bootstrap.py --only "$ONLY" check-python
+          python3 scripts/bootstrap.py --only "$ONLY" check-pins
+      - name: Pipeline example (doc2md → fieldcheck; the sample has deliberate findings → 1)
+        run: |
+          set +e
+          OUT="$RUNNER_TEMP/pipeline" ./examples/expense-pipeline.sh
+          rc=$?
+          set -e
+          if [ "$rc" -ne 1 ]; then echo "::error::パイプライン例の終了コードが 1（指摘あり）ではありません: $rc"; exit 1; fi
+          test -f "$RUNNER_TEMP/pipeline/expense-list.validation.html"
+
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Python のリポジトリの一覧
+        run: |
+          $only = python -c $env:LIST_PYTHON_REPOS
+          if ($LASTEXITCODE) { exit 1 }
+          "ONLY=$only" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: setup.cmd — repos.yaml の Python のリポジトリを各 main の最新で
+        shell: cmd
+        run: call setup.cmd -Only %ONLY%
+      - name: Smoke test the installed tools
+        env:
+          PYTHONUTF8: "1"
+        run: |
+          $venv = Join-Path (Split-Path $PWD -Parent) ".venv\Scripts"
+          foreach ($cli in @($env:SMOKE_CLIS -split ' ')) {
+            & "$venv\$cli.exe" --help > $null; if ($LASTEXITCODE) { Write-Output "::error::$cli --help が失敗しました"; exit 1 }
+            Write-Output "ok $cli"
+          }
+          & "$venv\python.exe" -c $env:SMOKE_IMPORTS; if ($LASTEXITCODE) { exit 1 }
+          python scripts\bootstrap.py --only $env:ONLY check-python; if ($LASTEXITCODE) { exit 1 }
+          python scripts\bootstrap.py --only $env:ONLY check-pins; if ($LASTEXITCODE) { exit 1 }
+      - name: Pipeline example (doc2md → fieldcheck; the sample has deliberate findings → 1)
+        env:
+          PYTHONUTF8: "1"
+        run: |
+          .\examples\expense-pipeline.ps1 -Out "$env:RUNNER_TEMP\pipeline"
+          if ($LASTEXITCODE -ne 1) { Write-Output "::error::パイプライン例の終了コードが 1（指摘あり）ではありません: $LASTEXITCODE"; exit 1 }
+          if (-not (Test-Path "$env:RUNNER_TEMP\pipeline\expense-list.validation.html")) { Write-Output "::error::レポートがありません"; exit 1 }
+          exit 0
+
+  # どちらかが落ちたら Issue を起こす（開いている同じ題の Issue があればコメントを足す）. このジョブだけ Issue に書ける
+  report:
+    needs: [setup-sh, windows]
+    if: failure()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Issue を起こす・コメントを足す
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          RESULTS: "setup-sh: ${{ needs.setup-sh.result }} / windows: ${{ needs.windows.result }}"
+        run: |
+          title="最新 main の組み合わせで setup が通りません（latest-mains）"
+          body="$(printf '%s\n\n%s\n\n%s\n%s\n' \
+            "週 1 回の latest-mains（repos.yaml の Python のリポジトリを各 main の最新で setup）が失敗しました: $RESULTS" \
+            "実行: $RUN_URL" \
+            "取り出した版は実行の Job Summary にあります。多くは各リポジトリの devtools-common などの固定 SHA のずれです（ログの check-pins の表示を見て、固定をそろえる PR を出す）。" \
+            "直ったら .github/ci-repos.yaml の ref もその組み合わせに上げてください。")"
+          n="$(gh api "repos/$GH_REPO/issues?state=open&per_page=100" --jq "[.[] | select(.pull_request == null and .title == \"$title\")][0].number // empty")"
+          if [ -n "$n" ]; then
+            gh api "repos/$GH_REPO/issues/$n/comments" -f body="$body" --jq .html_url
+          else
+            gh api "repos/$GH_REPO/issues" -f title="$title" -f body="$body" --jq .html_url
+          fi

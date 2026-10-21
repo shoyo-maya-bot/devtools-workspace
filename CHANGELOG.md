@@ -3,6 +3,19 @@
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/)、版は [SemVer](https://semver.org/lang/ja/) に従います。
 
 
+## 2026-10-21 最新 main の組み合わせの週 1 回の確認、パイプライン例の終了コード、winget の版の固定
+
+- `.github/workflows/latest-mains.yml`（新規）: 週 1 回（月曜）と手動で、`repos.yaml` の Python のリポジトリを各 main の最新どうしで
+  setup し（ubuntu・Windows）、各 CLI の `--help`・import・check-python・check-pins・パイプライン例を流す。落ちたら Issue を起こす
+  （同じ題の Issue が開いていればコメントを足す）。PR の CI（`ci.yml`）はこれまでどおり `ci-repos.yaml` の SHA に固定
+- examples/expense-pipeline.sh・.ps1: 終了コードで段を区別する（0 なし / 1 指摘 / 2 前提の誤り / 3 実行時エラー / 4 変換の警告 / 5 変換の警告と指摘）。
+  これまでは doc2md `--strict` の警告（変換ロスなど）で 1 を返して fieldcheck を流さず、指摘ありと区別できなかった。
+  いまは警告があっても Markdown ができていれば fieldcheck を流し、4・5 で知らせる。前回の Markdown は変換の前に消す（変換できなかったのに古い出力を検証しない）。
+  .sh の冒頭のコメント（ツールを探す順）を実際の順（仮想環境 → PATH）に直した
+- scripts/install-prereqs.ps1: winget で入れる Rancher Desktop を 1.24.0（回避策を確かめた版）に固定（`--version`）。版を固定したものが入らないときは入れられる版の調べ方を表示する
+- README: learning-materials の章の数を実際（60 章と付録）に直した
+- `.github/ci-repos.yaml`: 全リポジトリを 2026-10-21 の最新に上げた（devtools-common 04f3915、doc-to-markdown a10ad87、agent-lab 08e9689 など）
+
 ## 2026-10-09 ref にそろわないまま install しない、requires-python の判定、トークンを pip に渡さない、リリース前のテスト
 
 - `bootstrap.py install`（`setup.sh`・`setup.cmd` も）: マニフェストで `ref` を指定したリポジトリの HEAD が ref のコミットと違えば、
