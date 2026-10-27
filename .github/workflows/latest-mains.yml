@@ -1,7 +1,7 @@
 name: latest-mains
 
 # 週 1 回、repos.yaml の Python のリポジトリを **各リポジトリの main の最新どうし** で取り出し、利用者と同じ setup（ref の固定なし）で
-# 一括インストール・各 CLI の --help・import・check-python・check-pins・パイプライン例を流す。
+# 一括インストール・各 CLI の --help・import・check-python・check-pins・パイプライン例を流す。learning-materials の章の数の記載も main の実物と照合する。
 # ci.yml の統合ジョブは .github/ci-repos.yaml の SHA に固定しているので（PR の結果を他のリポジトリの変更で変えないため）、
 # main どうしの食い違い（devtools-common などの固定 SHA のずれ・requires-python・依存の衝突）はここで見つける。
 # 失敗したら Issue を起こす（同じ題の Issue が開いていれば、そこにコメントを足す）。手で動かすときは Actions の画面から（workflow_dispatch）
@@ -60,6 +60,11 @@ jobs:
           python3 scripts/bootstrap.py --only "$ONLY" check-pins
           # README のツールごとの requires-python の一覧が、各 main の pyproject.toml と合っているか
           README_FACTS_REQUIRE_CHECKOUTS=1 python3 -m unittest tests.test_bootstrap.ReadmeFactsTest -v
+      - name: learning-materials の章の数（README・repos.yaml・armory の記載と main の実物）
+        run: |
+          git clone -q --depth 1 https://github.com/shoyo-maya-bot/learning-materials "$RUNNER_TEMP/learning-materials"
+          LEARNING_MATERIALS_DIR="$RUNNER_TEMP/learning-materials" LEARNING_MATERIALS_REQUIRE_CHECKOUT=1 \
+            python3 -m unittest tests.test_learning_materials -v
       - name: Pipeline example (doc2md → fieldcheck; the sample has deliberate findings → 1)
         run: |
           set +e

@@ -3,6 +3,16 @@
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/)、版は [SemVer](https://semver.org/lang/ja/) に従います。
 
 
+## 2026-10-28 ruff を 0.16 系にそろえる、ドキュメントと動きのずれ（第 8 回）
+
+- 共通 CI（`python-ci.yml`）・`python-release.yml`・`ci.yml` の `RUFF_VERSION` を 0.15.11 から 0.16.10（各ツールの `constraints.txt` と同じ）に上げた。
+  `ci-repos.yaml` の版の全リポジトリで `ruff check .`・`ruff format --check .` が 0.16.10 で通ることを確かめた。3 つのワークフローの版の一致をテストで確かめる
+- `bootstrap.py clone`: 1 件の clone の失敗・`ref:` を取り出せないことで全体を止めていた（README は「ほかの取得は続ける」）。知らせて続け、最後に終了コード 1
+- `bootstrap.py pull`: detached HEAD のリポジトリは理由（既定ブランチへの戻し方）を表示して飛ばす。README の「clone / pull は既定ブランチを取り出す」を、
+  実際（pull はいまのブランチのまま fast-forward）に直した
+- README: Pages の公開は Settings → Pages → Source を「GitHub Actions」にしたときだけ pages.yml が使われることと、その手順を書いた
+- learning-materials の章の数を 73 章と付録 3 に直した（README・repos.yaml・武具屋）。3 か所の一致と、latest-mains で main の実物との一致をテストで確かめる（`tests/test_learning_materials.py`）
+
 ## 2026-10-22 doc-to-markdown の Python 3.11 以上への追随、空のフォルダを黙って外さない
 
 - `.github/ci-repos.yaml`: doc-to-markdown を 28ee561（`requires-python = ">=3.11"`）に上げた。ほかのリポジトリの ref はそのまま（固定 SHA はそろっている）
@@ -25,7 +35,7 @@
   いまは警告があっても Markdown ができていれば fieldcheck を流し、4・5 で知らせる。前回の Markdown は変換の前に消す（変換できなかったのに古い出力を検証しない）。
   .sh の冒頭のコメント（ツールを探す順）を実際の順（仮想環境 → PATH）に直した
 - scripts/install-prereqs.ps1: winget で入れる Rancher Desktop を 1.24.0（回避策を確かめた版）に固定（`--version`）。版を固定したものが入らないときは入れられる版の調べ方を表示する
-- README: learning-materials の章の数を実際（60 章と付録）に直した
+- README: learning-materials の章の数を当時の実際（60 章と付録）に直した（その後 73 章になり、第 8 回で直した）
 - `.github/ci-repos.yaml`: 全リポジトリを 2026-10-21 の最新に上げた（devtools-common 04f3915、doc-to-markdown a10ad87、agent-lab 08e9689 など）
 
 ## 2026-10-09 ref にそろわないまま install しない、requires-python の判定、トークンを pip に渡さない、リリース前のテスト

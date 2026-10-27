@@ -332,9 +332,10 @@ class RefTest(unittest.TestCase):
         # host/org/name.git → tmp/o/src.git に置く
         (tmp / "o").mkdir()
         self._git("clone", "-q", "--bare", str(src), str(tmp / "o" / "src.git"), cwd=tmp)
-        with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as cm:
-            bootstrap.cmd_clone(tmp / "ws", top, repos, None)
-        self.assertIn("missing-tag を取り出せませんでした", str(cm.exception))
+        err = io.StringIO()
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+            self.assertEqual(bootstrap.cmd_clone(tmp / "ws", top, repos, None), 1)
+        self.assertIn("NG     src: missing-tag を取り出せませんでした", err.getvalue())
 
     def test_setup_scripts_do_not_promise_to_continue_on_ref_failure(self):
         for name in ("setup.sh", "scripts/setup.ps1"):
@@ -393,6 +394,36 @@ class EmptyFolderTest(unittest.TestCase):
         self.assertIn("NG     a:", err.getvalue())
         self.assertIn("Git のリポジトリではありません", err.getvalue())
         self.assertTrue((self.ws / "b" / ".git").exists(), "ほかのリポジトリは取得を続ける")
+
+    def test_clone_failure_does_not_stop_the_others(self):
+        """第 8 回: 1 件の clone の失敗（存在しない・権限が無い）で全体を止めていた.
+
+        README は「ほかのリポジトリの取得は続ける」.
+        """
+        top = self._bare(self.tmp, "b")
+        repos = [bootstrap.Repo("a", python=True), bootstrap.Repo("b", python=True)]  # a は元が無い
+        err = io.StringIO()
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+            self.assertEqual(bootstrap.cmd_clone(self.ws, top, repos, None), 1)
+        self.assertIn("NG     a: clone できませんでした", err.getvalue())
+        self.assertTrue((self.ws / "b" / ".git").exists(), "ほかのリポジトリは取得を続ける")
+
+    def test_pull_keeps_current_branch_and_reports_detached_head(self):
+        """README: pull は既定ブランチに切り替えず、いまのブランチを fast-forward する.
+
+        detached HEAD は知らせて飛ばす.
+        """
+        top = self._bare(self.tmp, "a")
+        self._bare(self.tmp, "b")
+        repos = [bootstrap.Repo("a"), bootstrap.Repo("b")]
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(bootstrap.cmd_clone(self.ws, top, repos, None), 0)
+        self._git("switch", "-q", "-c", "work", cwd=self.ws / "a")
+        self._git("switch", "-q", "--detach", cwd=self.ws / "b")
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(bootstrap.cmd_pull(self.ws, repos), 1)
+        self.assertEqual(self._git("rev-parse", "--abbrev-ref", "HEAD", cwd=self.ws / "a"), "work")
+        self.assertIn("pull   b: ブランチではなくコミットを取り出しているので（detached HEAD）", out.getvalue())
 
     def test_install_stops_on_empty_folder(self):
         (self.ws / "a").mkdir()

@@ -13,7 +13,7 @@ permissions:
 # ci-repos.yaml には repos.yaml の Python のリポジトリをすべて入れ、全ツールの一括インストールを ubuntu・macOS・Windows で通す。
 # 取り出すリポジトリはすべて公開なので、トークン（DEPS_TOKEN）は使わない
 env:
-  RUFF_VERSION: "0.15.11"
+  RUFF_VERSION: "0.16.10"
   BANDIT_VERSION: "1.8.6"
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
   # 一括インストールのあとに --help で動くことを確かめる CLI と、import を確かめるモジュール（ci-repos.yaml の全ツール。agenda-bot と devtools-mcp は起動すると待ち受けるので import だけ）

@@ -21,7 +21,7 @@
 | 進捗レポート | [backlog-report](https://github.com/shoyo-maya-bot/backlog-report) | `backlog-report` | Backlog の遅延・担当者別・ガント・バーンダウンを Slack と Wiki へ |
 | 会議のアジェンダ | [slack-agenda-bot](https://github.com/shoyo-maya-bot/slack-agenda-bot) | – | `/agenda` で議題を集め、Canvas にまとめる Slack ボット |
 | スライド | [slide-tool](https://github.com/shoyo-maya-bot/slide-tool) | `npm run` | Marp + Tailwind のテーマ・レイアウト 20 種・はみ出しチェック・PDF / PPTX |
-| 教材 | [learning-materials](https://github.com/shoyo-maya-bot/learning-materials) | – | 環境構築・基礎・実ソース読解（演習と解答）・非同期・API・設計品質・クラウド・マネジメントの全 60 章と付録（2026-10 時点） |
+| 教材 | [learning-materials](https://github.com/shoyo-maya-bot/learning-materials) | – | 環境構築・基礎・実ソース読解（演習と解答）・非同期・API・設計品質・クラウドとアーキテクチャ・案件担当（演習と解答）・マネジメントの全 73 章と付録 3（2026-10 時点） |
 | 実験 | [agent-lab](https://github.com/shoyo-maya-bot/agent-lab) | – | AI エージェントに任せられる範囲の実験（MCP・自律度・マルチモデルの相互レビュー）。設計の段階 |
 | 基盤 | [review-platform](https://github.com/shoyo-maya-bot/review-platform) | – | 設計書とコードの差分の AI レビュー基盤（API・MCP、ローカル・AWS・Azure、Terraform）。クラウドと MCP の学習の題材 |
 | 土台 | [devtools-common](https://github.com/shoyo-maya-bot/devtools-common) | – | 共有ライブラリ（CLI の終了コード・レポート形式・ログ・一時ファイル・HTTP） |
@@ -95,7 +95,13 @@ VS Code で `devtools.code-workspace` を開くと全リポジトリを 1 画面
 
 ### 選んで取ってくる（devtools 武具屋）
 
-**[devtools 武具屋](https://shoyo-maya-bot.github.io/devtools-workspace/armory/)** は、リポジトリを RPG の装備に見立てて選ぶページです（ソースは [armory/index.html](armory/index.html)。ダウンロードしてブラウザで開いても動きます。main の `armory/` が変わると `.github/workflows/pages.yml` がデプロイするので、Settings → Pages の Source は「GitHub Actions」にしておく）。
+**[devtools 武具屋](https://shoyo-maya-bot.github.io/devtools-workspace/armory/)** は、リポジトリを RPG の装備に見立てて選ぶページです（ソースは [armory/index.html](armory/index.html)。ダウンロードしてブラウザで開いても動きます）。
+
+公開は `.github/workflows/pages.yml`（main の `armory/` か pages.yml が変わったとき・手動）で行います。**このワークフローが公開に使われるのは、Pages の公開元が「GitHub Actions」のときだけ** です。リポジトリの管理者が一度だけ次の設定をします。
+
+1. GitHub のリポジトリの **Settings → Pages** を開く
+2. **Build and deployment → Source** を「**GitHub Actions**」にする（「Deploy from a branch」のままだと、main の中身がそのまま Jekyll で公開され、pages.yml の成果物は使われません。トップから武具屋への転送も効きません）
+3. **Actions → pages → Run workflow** で 1 回流し、`https://shoyo-maya-bot.github.io/devtools-workspace/armory/` が開けることを確かめる
 
 - 道具を「そうびする」と、選んだリポジトリだけを clone（取得済みなら `git pull --ff-only`）する **詠唱マクロ** が PowerShell 版と bash 版でできる
 - 各道具の **装備スキル** に、その README の使い方をコマンド付きでまとめている
@@ -168,10 +174,11 @@ pip が別の理由で失敗したときも、トレースバックではなく�
 Python のパッケージがサブフォルダにあるリポジトリ（agent-lab の `auto-review`・`mcp-server`、ai-coding の `tools/spec-trace`）は、repos.yaml の `packages:` に相対パスを書きます。
 ほかのツールが URL で固定しているパッケージ（review-platform が固定する auto-review、各ツールが固定する devtools-common）は、既定の `install` では手元の checkout を入れず、固定した版を使います。
 
-`clone` は、取得済み（`.git` がある）のリポジトリを飛ばし、空のフォルダにはそのまま clone します。中身があって Git のリポジトリでないフォルダがあれば、知らせて終了コード 1 にします（ほかのリポジトリの取得は続ける）。
+`clone` は、取得済み（`.git` がある）のリポジトリを飛ばし、空のフォルダにはそのまま clone します。中身があって Git のリポジトリでないフォルダがあるとき・clone に失敗したとき（ネットワーク・権限・名前の誤り）・`ref:` を取り出せないときは、知らせて終了コード 1 にします（ほかのリポジトリの取得は続ける。`setup` はそのあとインストールの前に止まる）。
 `install` は、未取得の Python のリポジトリを「未取得」と表示して飛ばし、フォルダはあるのに `pyproject.toml` が無いもの（空のフォルダ・`packages:` のサブフォルダが無いものなど）があれば、黙って外さずに終了コード 1 で止めます。
 
-`clone` / `pull` は既定ブランチを取り出します。repos.yaml の項目に `ref:`（ブランチ・タグ・コミット SHA）を書くと、そのリポジトリはその ref を取り出します。
+`clone` は既定ブランチを取り出します。`pull` は **いま取り出しているブランチのまま** `git pull --ff-only` します（既定ブランチに切り替えはしません。作業用のブランチにいればそのブランチを進め、追跡するブランチが無ければ失敗として知らせます）。コミットを直接取り出している（detached HEAD）リポジトリは最新にできないので、知らせて飛ばします（`git switch <既定ブランチ>` で戻す）。どちらも、ほかのリポジトリは続けて最後に終了コード 1 です。
+repos.yaml の項目に `ref:`（ブランチ・タグ・コミット SHA）を書くと、そのリポジトリは clone・pull のどちらでもその ref を取り出します（ブランチなら fast-forward まで）。
 マニフェストの行末の ` # コメント` は除きます（`"…"`・`'…'` で囲んだ値の中の `#` は値の一部）。読めない行・知らない項目・閉じていない引用符は、黙って読み飛ばさず、ファイル名と行番号を表示して終了コード 2 で止まります。
 別のマニフェストを使うときは `bootstrap.py --manifest <ファイル>`（`setup.sh --manifest`・`setup.cmd -Manifest`）を渡します。
 新しいツールの追加手順は [docs/NEW_TOOL.md](docs/NEW_TOOL.md) を参照してください。
@@ -189,12 +196,13 @@ Python のパッケージがサブフォルダにあるリポジトリ（agent-l
 | `setup.cmd` で全 Python ツールを取得・インストールできるか | `setup.cmd -Manifest .github\ci-repos.yaml` を 2 回（2 回目は取得済みのものを最新にする流れ）。そのあと各 CLI の `--help`、全パッケージの import、`bootstrap.py check-python`・`check-pins`（setup の中でも check-pins を流す）、README のツールごとの `requires-python` の一覧が取り出した版と合うか（`ReadmeFactsTest`） |
 | `setup.sh` で取得・インストールできるか（macOS・Linux） | `setup-sh` ジョブ（ubuntu-latest と macos-latest）で同じことをし、取り出した版が `ci-repos.yaml` の SHA と同じかも確かめる |
 | パイプライン例が動くか | setup のあと `examples/expense-pipeline.sh`（setup-sh）・`expense-pipeline.ps1`（windows）を 1 回流し、終了コード 1（見本の不整合を指摘）とレポートができることを確かめる |
-| 各リポジトリの main の最新どうしで動くか | 別のワークフロー `latest-mains.yml`（週 1 回の月曜と手動。ubuntu と Windows）で、`ci-repos.yaml` を使わず `repos.yaml` の Python のリポジトリを各 main の最新で setup し、上と同じ確認をする。落ちたら Issue を起こす（同じ題の Issue が開いていればコメントを足す） |
+| 各リポジトリの main の最新どうしで動くか | 別のワークフロー `latest-mains.yml`（週 1 回の月曜と手動。ubuntu と Windows）で、`ci-repos.yaml` を使わず `repos.yaml` の Python のリポジトリを各 main の最新で setup し、上と同じ確認をする。learning-materials の main も取り出し、README・repos.yaml・武具屋に書いた章の数が実物と合うかも確かめる（`tests/test_learning_materials.py`）。落ちたら Issue を起こす（同じ題の Issue が開いていればコメントを足す） |
 | 古い Python で分かりやすく止まるか | 単体テスト（`tests/test_python_version.py`。3.9 のふりをして `bootstrap.py` と `setup.sh` を動かす） |
 
 統合のジョブが取り出す他のリポジトリ（repos.yaml の `python: true` の全リポジトリ。テストで確かめる）は、[.github/ci-repos.yaml](.github/ci-repos.yaml) の `ref:` で **コミット SHA に固定** しています。
 他のリポジトリの main が変わってもこのリポジトリの CI は変わらず、同じ結果を再現できます。上げるときは `ci-repos.yaml` の SHA を書き換えて PR を出します。
 CI で入れるツール（ruff・bandit・pip-audit・build）も版を固定しています（`ci.yml`・`python-ci.yml`・`python-release.yml` の先頭の `env` など）。
+ruff は各ツールの `constraints.txt` と同じ 0.16 系にそろえています（3 つのワークフローで同じ版であることを `tests/test_workflows.py` で確かめる。各ツールの CI に効くのは、呼び出し側が固定した SHA をこの版の後に上げたとき）。
 `python-release.yml` は、公開の前に `python-ci.yml` と同じ lint・test（ubuntu の複数 Python と Windows）をタグのコミットで流し、すべて通ったときだけビルドして Release を作ります
 （ジョブの中身が `python-ci.yml` と同じことは `tests/test_workflows.py` で確かめる。CI で `with:` を渡しているリポジトリは、リリースの呼び出しにも同じ `with:` を渡す）。
 build と build backend（setuptools・wheel など）の版を `PIP_CONSTRAINT` で固定し（呼び出し側に `constraints.txt` があればそれも使う）、wheel が固定した setuptools で作られたことを確かめます。
@@ -234,6 +242,7 @@ checkout は `persist-credentials: false` にして、認証情報をランナ�
 - [x] リポジトリを作成して push（15 個 + .github。一覧は `repos.yaml`）
 - [x] 各ツールは `devtools-common` をコミット SHA で固定して依存（タグ不要）
 - [ ] learning-materials: Settings → Pages → Source を **GitHub Actions** にする（教材サイトの公開）
+- [ ] devtools-workspace: Settings → Pages → Source を **GitHub Actions** にし、Actions の pages を 1 回流す（武具屋の公開。上の「選んで取ってくる」の手順）
 - [ ] 各リポの `main` にブランチ保護（CI 必須・レビュー必須）
 - [x] LICENSE: 全リポ MIT（著作権表示はアカウント名）
 - [ ] 社内の AI 利用規程・Copilot の契約で、業務文書を扱ってよい範囲を確認（[docs/AI_USAGE.md](docs/AI_USAGE.md)）

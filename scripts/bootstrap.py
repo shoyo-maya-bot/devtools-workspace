@@ -10,9 +10,11 @@
     └── ...
 
 サブコマンド:
-    clone     マニフェスト（repos.yaml）のリポジトリのうち、未取得のものを clone（空のフォルダにも clone する。
-              中身があって Git のリポジトリでないフォルダは知らせて 1）
-    pull      取得済みのリポジトリを git pull --ff-only
+    clone     マニフェスト（repos.yaml）のリポジトリのうち、未取得のものを既定ブランチで clone
+              （空のフォルダにも clone する。中身があって Git のリポジトリでないフォルダ・clone に失敗したものは
+              知らせて、ほかは続けて最後に 1）
+    pull      取得済みのリポジトリを、いま取り出しているブランチのまま git pull --ff-only（ref があればその ref に）。
+              detached HEAD・手元の変更で進められないものは知らせて、ほかは続けて最後に 1
     status    各リポジトリのブランチ・未コミット変更・最新タグ
     install   仮想環境を作り、Python のツールを入れる（各ツールが固定した devtools-common を使う）。
               未取得のリポジトリは知らせて飛ばす。フォルダはあるのに pyproject.toml が無いもの
@@ -200,12 +202,20 @@ def cmd_clone(root: Path, top: dict[str, str], repos: list[Repo], org: str | Non
         # 空のフォルダ（作っただけ・clone の途中で止まったもの）には、そのまま clone する
         into_empty = "（空のフォルダに取得）" if dest.exists() else ""
         print(f"clone  {r.name}" + (f" @ {r.ref}" if r.ref else "") + into_empty)
-        git(["clone", f"{host}/{org}/{r.name}.git", str(dest)])
+        # 1 件の失敗（ネットワーク・権限・名前の誤りなど）で全体を止めず、
+        # ほかのリポジトリの取得は続けて最後に 1 を返す（README のとおり）
+        url = f"{host}/{org}/{r.name}.git"
+        c = subprocess.run(["git", "clone", url, str(dest)], capture_output=True, text=True, check=False)
+        if c.returncode != 0:
+            failed += 1
+            print(f"NG     {r.name}: clone できませんでした: {c.stderr.strip()}", file=sys.stderr)
+            continue
         if r.ref:
             p = subprocess.run(["git", "checkout", "-q", r.ref], cwd=dest, capture_output=True, text=True, check=False)
             if p.returncode != 0:
                 # clone は残る（次の setup では skip される）が、install は HEAD が ref と違うリポジトリがあれば止まる
-                raise SystemExit(f"clone  {r.name}: {r.ref} を取り出せませんでした: {p.stderr.strip()}")
+                failed += 1
+                print(f"NG     {r.name}: {r.ref} を取り出せませんでした: {p.stderr.strip()}", file=sys.stderr)
     return 1 if failed else 0
 
 
@@ -252,6 +262,14 @@ def cmd_pull(root: Path, repos: list[Repo]) -> int:
                 continue
             failed += 1
             print(f"pull   {r.name}: {r.ref} にできませんでした（手元の変更を確かめてください）: {p.stderr.strip()}")
+            continue
+        # ref の無いリポジトリは、いま取り出しているブランチを fast-forward する（既定ブランチに切り替えはしない）
+        if git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=d, check=False) == "HEAD":
+            failed += 1
+            print(
+                f"pull   {r.name}: ブランチではなくコミットを取り出しているので（detached HEAD）最新にできません。"
+                f"既定ブランチに戻すには git -C {d} switch <既定ブランチ>"
+            )
             continue
         p = subprocess.run(["git", "pull", "--ff-only"], cwd=d, capture_output=True, text=True, check=False)
         if p.returncode == 0:
