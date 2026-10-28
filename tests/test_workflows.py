@@ -286,3 +286,21 @@ class LatestMainsWorkflowTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ToolVersionsAgreeTest(unittest.TestCase):
+    """ruff の版: ci.yml・python-ci.yml・python-release.yml でそろえ、
+    各ツールの constraints.txt（0.16 系）と同じ系列にする.
+
+    後退: 各リポジトリの constraints.txt は ruff 0.16.x なのに、共通 CI（python-ci.yml）は 0.15.11 で、
+    手元で通る lint と CI の lint の版が違っていた.
+    """
+
+    def test_ruff_version_is_same_everywhere(self):
+        versions = {}
+        for name in ("ci.yml", "python-ci.yml", "python-release.yml"):
+            m = re.search(r'^  RUFF_VERSION: "([\d.]+)"', read(WORKFLOWS / name), re.M)
+            self.assertIsNotNone(m, name)
+            versions[name] = m.group(1)
+        self.assertEqual(len(set(versions.values())), 1, versions)
+        self.assertTrue(next(iter(versions.values())).startswith("0.16."), versions)

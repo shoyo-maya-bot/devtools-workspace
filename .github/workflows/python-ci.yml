@@ -56,7 +56,7 @@ permissions:
   contents: read
 
 env:
-  RUFF_VERSION: "0.15.11"
+  RUFF_VERSION: "0.16.10"
   BANDIT_VERSION: "1.8.6"
   PIP_AUDIT_VERSION: "2.9.0"
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
