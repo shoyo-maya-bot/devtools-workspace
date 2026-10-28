@@ -66,6 +66,25 @@ class ArmoryTest(unittest.TestCase):
                 else:
                     self.assertEqual(named, [], f"{r.name}: repos.yaml に cli が無いのに CLI 名が書いてある")
 
+    def test_sets_use_known_items(self):
+        """おすすめセットの道具が ITEMS にあり、なり方を書いた称号が漏れなくあるか."""
+        text = armory_text()
+        items = set(re.findall(r'^\{id:"([^"]+)"', text, re.M))
+        sets = re.search(r"^const SETS = \[\n(.*?)^\];", text, re.M | re.S)
+        self.assertIsNotNone(sets)
+        rows = re.findall(r'^ \["([^"]+)","[^"]+","[^"]+",\[([^\]]*)\]\]', sets.group(1), re.M)
+        self.assertGreaterEqual(len(rows), 3)
+        for name, ids in rows:
+            with self.subTest(set=name):
+                used = re.findall(r'"([^"]+)"', ids)
+                self.assertTrue(used)
+                self.assertEqual([u for u in used if u not in items], [], f"{name}: ITEMS に無い道具")
+        jobs = re.search(r"^const JOBS = \[\n(.*?)^\];", text, re.M | re.S)
+        self.assertIsNotNone(jobs)
+        for line in jobs.group(1).splitlines():
+            with self.subTest(job=line[:40]):
+                self.assertRegex(line, r'"[^"]+","[^"]+"\],?$', "称号になり方（3 つ目）が無い")
+
     def test_every_item_has_skill(self):
         text = armory_text()
         blocks = re.split(r'^\{id:"', text, flags=re.M)[1:]

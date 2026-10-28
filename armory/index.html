@@ -87,7 +87,7 @@ header.top{display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:cent
 .stat-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:10px 0 14px}
 .stat-row div{background:var(--bg2);border-radius:6px;padding:6px 8px;text-align:center}
 .stat-row b{display:block;font-family:var(--f-display);font-weight:400;font-size:1.25rem;font-variant-numeric:tabular-nums}
-.stat-row span{font-size:.72rem;color:var(--muted);letter-spacing:.08em}
+.stat-row span{display:block;font-size:.72rem;line-height:1.35;color:var(--muted);letter-spacing:.08em}
 .equip-btn{width:100%;font-family:var(--f-display);font-size:1.15rem;padding:10px;border-radius:8px;border:3px solid var(--line);
   background:var(--gold);color:#2a1a00;box-shadow:0 4px 0 #8a5a12;transition:transform .08s}
 .equip-btn:active{transform:translateY(3px);box-shadow:0 1px 0 #8a5a12}
@@ -95,11 +95,12 @@ header.top{display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:cent
 .skill{margin-top:16px;border-top:2px dashed var(--dim);padding-top:12px}
 .skill h4{font-family:var(--f-display);font-weight:400;color:var(--mint);margin:0 0 6px;font-size:1.05rem}
 .skill p{margin:0 0 8px;color:var(--muted);font-size:.9rem}
-.skill ol{margin:0;padding-left:1.3em;display:grid;gap:8px}
-.skill li{padding-left:2px}
+.skill ol{margin:0;padding-left:1.3em;display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
+.skill li{padding-left:2px;min-width:0}
 .skill li>span{display:block;font-size:.9rem}
-.cmd{display:flex;gap:6px;align-items:stretch;margin-top:4px}
-.cmd pre{flex:1;min-width:0;margin:0;background:var(--bg2);border:1px solid var(--dim);border-radius:6px;padding:6px 10px;overflow-x:auto;
+/* コマンドは折り返して全部見せる（横スクロールで隠さない）。コピーのボタンは常に右に見える */
+.cmd{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;align-items:stretch;margin-top:4px}
+.cmd pre{min-width:0;margin:0;background:var(--bg2);border:1px solid var(--dim);border-radius:6px;padding:6px 10px;white-space:pre-wrap;overflow-wrap:anywhere;
   font-family:var(--f-code);font-size:.8rem;line-height:1.55;color:#e7f6ff}
 .mini{border:1px solid var(--dim);background:var(--panel2);border-radius:6px;font-size:.75rem;padding:0 8px;color:var(--muted);white-space:nowrap}
 .mini:hover{color:var(--fg);border-color:var(--line)}
@@ -120,9 +121,36 @@ header.top{display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:cent
 .bag button:hover{border-color:var(--rose)}
 .bag canvas{width:32px;height:32px;image-rendering:pixelated}
 .bag .empty{color:var(--dim);font-size:.85rem;line-height:1.6;align-self:center}
-.sets{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
-.sets button{border:2px solid var(--line);background:var(--panel2);border-radius:6px;padding:3px 10px;font-family:var(--f-display);font-size:.88rem}
-.sets button:hover{background:var(--line);color:var(--bg)}
+.legend{margin:10px 0 0;padding:0;list-style:none;display:grid;gap:2px;font-size:.8rem;color:var(--muted)}
+.legend b{font-family:var(--f-display);font-weight:400;display:inline-block;min-width:3.2em}
+.quick{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.quick button{border:2px solid var(--dim);background:transparent;border-radius:6px;padding:2px 10px;font-family:var(--f-display);font-size:.85rem;color:var(--muted)}
+.quick button:hover{border-color:var(--line);color:var(--fg)}
+.dex{margin-top:14px;font-size:.85rem}
+.dex summary{font-family:var(--f-display);cursor:pointer;color:var(--fg)}
+.dex ol{margin:8px 0 0;padding:0;list-style:none;display:grid;gap:4px}
+.dex li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 10px;padding:4px 8px;border-radius:6px;background:var(--bg2)}
+.dex li b{font-family:var(--f-display);font-weight:400;color:var(--fg)}
+.dex li span{color:var(--muted)}
+.dex li[aria-current="true"]{outline:2px solid var(--gold)}
+.dex li[aria-current="true"] b{color:var(--gold)}
+.dex .note{margin-top:6px}
+/* おすすめセット */
+.setgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.set{background:var(--bg2);border:2px solid var(--dim);border-radius:8px;padding:12px;display:grid;gap:8px;align-content:start}
+.set.on{border-color:var(--mint)}
+.set h3{font-size:1.1rem;margin:0;color:var(--gold);display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.set h3 small{font-family:var(--f-body);font-size:.75rem;color:var(--mint)}
+.set dl{margin:0;display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 10px;font-size:.85rem}
+.set dt{color:var(--muted);white-space:nowrap}
+.set dd{margin:0}
+.set .job-name{font-family:var(--f-display);color:var(--gold)}
+.set ul{margin:0;padding:0;list-style:none;display:grid;gap:2px}
+.set li{display:grid;grid-template-columns:24px minmax(0,1fr);gap:6px;align-items:center}
+.set li canvas{width:24px;height:24px;image-rendering:pixelated}
+.set li code{font-family:var(--f-code);font-size:.72rem;color:var(--muted)}
+.set button{border:3px solid var(--line);border-radius:8px;padding:5px 12px;font-family:var(--f-display);background:var(--mint);color:#062a20;box-shadow:0 3px 0 #2d7f67}
+.set.on button{background:var(--panel2);color:var(--fg);box-shadow:0 3px 0 var(--bg)}
 
 /* macro */
 .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
@@ -159,7 +187,7 @@ footer{color:var(--dim);font-size:.8rem;text-align:center}
     <canvas class="keeper" id="keeper" width="16" height="16" aria-hidden="true"></canvas>
     <div>
       <h1 class="sign">devtools <span>武具屋</span></h1>
-      <p class="tag">shoyo-maya-bot の 15 リポジトリを取りそろえた店。そうびすると、ローカルに呼び出す「詠唱マクロ」ができあがる。</p>
+      <p class="tag">shoyo-maya-bot の <span id="repoCount">16</span> リポジトリを取りそろえた店。そうびすると、ローカルに呼び出す「詠唱マクロ」ができあがる。</p>
     </div>
   </header>
 
@@ -183,8 +211,17 @@ footer{color:var(--dim);font-size:.8rem;text-align:center}
         <div><div class="job" id="job"></div><div class="lv" id="lv"></div></div>
       </div>
       <div class="bars" id="bars"></div>
+      <ul class="legend" id="legend"></ul>
       <div class="bag" id="bag" aria-label="そうび中（クリックではずす）"></div>
-      <div class="sets" id="sets"></div>
+      <div class="quick">
+        <button data-all="1">全部そうび</button>
+        <button data-all="0">ぜんぶはずす</button>
+      </div>
+      <details class="dex">
+        <summary>称号（ジョブ）の一覧となり方</summary>
+        <ol id="dex"></ol>
+        <p class="note">上から順に見て、最初に当てはまったものが今の称号。レベルは 1 ＋ そうびした道具の★の数 × 2。ステータスは遊びの目安で、マクロの中身は変わらない。</p>
+      </details>
     </section>
 
     <section class="win" aria-labelledby="mcH">
@@ -216,6 +253,11 @@ footer{color:var(--dim);font-size:.8rem;text-align:center}
     </section>
   </div>
 
+  <section class="win" aria-labelledby="setH">
+    <h2 id="setH">おすすめセット <small>目的に合う道具をまとめてそうびする。中身・できること・なれる称号</small></h2>
+    <div class="setgrid" id="sets"></div>
+  </section>
+
   <footer>items: <span id="foot"></span> ／ 何度でも来店どうぞ</footer>
 </div>
 
@@ -243,7 +285,7 @@ slime:["............",".....bb.....","....baab....","...baaaab...","..bacaaaab..
 /* 品揃え。skill は README の手順から */
 const ITEMS = [
 {id:"devtools-workspace",name:"ギルドの大地図",slot:"acc",icon:"scroll",color:"#e8c27a",r:5,st:[2,4,6,9],
- flavor:"すべての道具の在りかが記された地図。これを持つ者は、ほかの 14 の道具を一度に呼び寄せられる。",
+ flavor:"すべての道具の在りかが記された地図。これを持つ者は、ほかのすべての道具を一度に呼び寄せられる。",
  lore:"親ワークスペース。マニフェスト repos.yaml・一括操作・パイプライン例・共通 CI。",
  skill:{p:"最初にそうびする拠点。ほかの道具も同じフォルダに並べる前提。",steps:[
   ["セットアップ（Windows は setup.cmd）","./setup.sh"],
@@ -277,10 +319,14 @@ const ITEMS = [
  flavor:"設計書を読ませれば、コードと単体テストを β 版として斬り出す聖剣。品質ゲートという鞘に収めて使う。",
  lore:"AI と進める設計 → 実装 → 単体テスト → レビューの手順・品質ゲート・エージェント・対応表（spec-trace 同梱）。",
  skill:{p:"GitHub Copilot のエージェントで使う。AI の出力は下書き扱い。",steps:[
-  ["対応表の検証ツールを入れる","pip install -e tools/spec-trace"],
+  ["検証ツール（対応表・テストの雛形）を入れる。版は constraints.txt で固定","python -m pip install -e \"tools/spec-trace[dev]\" -e \"tools/test-scaffold[dev]\" pyyaml -c constraints.txt"],
   ["品質ゲートを最後まで（Windows は .\\scripts\\verify-gates.ps1 -Final）","./scripts/verify-gates.sh --final"],
-  ["Copilot Chat で計画から PR まで","/ai-plan … /ai-pr"],
-  ["進み具合を聞く","/ai-status"]]}},
+  ["Copilot Chat ① 計画：設計書から生成ファイルの一覧と対応表を作る","/ai-plan DOC-BATCH-JOB0001"],
+  ["② コード生成","/ai-code traceability/specs/<機能>.yaml"],
+  ["③ 単体テスト・Karate の生成","/ai-test traceability/specs/<機能>.yaml"],
+  ["④ 設計書とコードの突き合わせ","/ai-review traceability/specs/<機能>.yaml"],
+  ["⑤ 全ゲートを流して PR 本文を下書き","/ai-pr JOB0001"],
+  ["今どこにいるか分からなくなったら","/ai-status"]]}},
 {id:"doc-to-markdown",name:"変換の杖 ドクツーエムディー",slot:"weapon",icon:"staff",color:"#c79bff",r:4,st:[7,2,8,5],
  flavor:"Office・PDF・図を Markdown に変える杖。変換で何かが失われれば、杖が震えて知らせる。",
  lore:"Office / PDF / draw.io を Markdown に変換（変換ロスの検知、llms.txt、figspec で YAML → draw.io）。",
@@ -303,7 +349,7 @@ const ITEMS = [
  flavor:"新旧の設計書を重ねて見ると、変わったセルだけが光って見える眼鏡。API 定義書のうそも見抜く。",
  lore:"Excel 設計書の新旧差分と、API 定義書（Excel）と OpenAPI の整合チェック。",
  skill:{p:"結果はレビューにそのまま貼れる Markdown。",steps:[
-  ["API 設計書の新旧差分","design-diff excel --type api --before old.xlsx --after new.xlsx"],
+  ["API 設計書の新旧差分（同梱のサンプルで）","design-diff excel --type api --before samples/before/API0001_会員照会.xlsx --after samples/after/API0001_会員照会.xlsx"],
   ["設定のペアをまとめて output/ へ","design-diff excel --all"],
   ["API 定義書と OpenAPI の整合","design-diff spec --excel API定義書.xlsx --oas openapi.yaml"]]}},
 {id:"quality-analytics",name:"分析の水晶玉",slot:"acc",icon:"orb",color:"#b08cff",r:3,st:[2,3,8,3],
@@ -340,11 +386,11 @@ const ITEMS = [
 {id:"slide-tool",name:"語り部の魔導書",slot:"tome",icon:"book",color:"#5a9cff",r:3,st:[4,2,6,5],
  flavor:"1 枚に 1 メッセージ。Markdown で書いた物語を、PDF や PPTX の語りに変える魔導書。",
  lore:"Marp + Tailwind でスライドを Markdown から作る（レイアウト集・はみ出しチェック・PDF / PPTX）。",
- skill:{p:"Node.js の道具。slides/*.md に 1 ファイル 1 資料。",steps:[
-  ["依存を入れる","npm install"],
-  ["編集しながらプレビュー","npm run watch"],
-  ["はみ出しチェック","npm run check"],
-  ["PDF / PPTX に","npm run pdf && npm run pptx"]]}},
+ skill:{p:"Node.js 20 以上の道具。slides/*.md に 1 ファイル 1 資料。:trusted は自分たちで作った資料だけ（人からもらった資料は :trusted を外す）。",steps:[
+  ["セットアップ（Windows は setup.cmd をダブルクリック）","./setup.sh"],
+  ["編集しながらプレビュー","npm run watch:trusted"],
+  ["文字量・はみ出しチェック","npm run check:trusted"],
+  ["PDF / PPTX に（dist/ へ）","npm run pdf:trusted && npm run pptx:trusted"]]}},
 {id:"learning-materials",name:"見習いの教本",slot:"tome",icon:"book",color:"#8fe3a5",r:2,st:[1,3,7,2],
  flavor:"Java 17・Spring Boot・MyBatis・JUnit・Karate。新しく来た者が最初に開く一冊。",
  lore:"開発者向け教材（環境構築・基礎・実ソース読解・非同期・API・設計品質・クラウドとアーキテクチャ・案件担当・マネジメントの全 73 章と付録 3）。GitHub Pages で公開。",
@@ -358,7 +404,7 @@ const ITEMS = [
  skill:{p:"課題は sample-app と架空の設計書だけ。実案件のデータは使わない。",steps:[
   ["方針と実験計画","docs/DESIGN.md を読む"],
   ["MCP の設定例（VS Code・Claude Code）","examples/"],
-  ["Copilot で PR を自動レビュー（ふだんは Sonnet）","/review-auto"],
+  ["Copilot で PR を自動レビュー（examples/vscode-prompts のプロンプト。ふだんは Sonnet）","/review-auto"],
   ["危ない PR を Opus で深く","/review-deep"]]}},
 {id:"review-platform",name:"雲上の審判所",slot:"tome",icon:"book",color:"#7aa8ff",r:4,st:[5,7,8,3],
  flavor:"同じ掟で、地上（ローカル）でも東西の雲（AWS・Azure）でも裁きを下す審判所。",
@@ -366,35 +412,39 @@ const ITEMS = [
  skill:{p:"クラウドへの apply は費用がかかるので、必ず人が実行する。まずはローカルで。",steps:[
   ["トークンを作る","review-platform token"],
   ["ローカルで起動","docker compose --profile local up -d --build"],
-  ["設計書を送って結果を待つ","review-platform submit samples/member-api-design.xlsx --token <トークン> --wait"],
+  ["設計書を送って結果を待つ","review-platform submit samples/member-api-design.xlsx --token <表示されたトークン> --wait"],
   ["VS Code から MCP で使う","README の .vscode/mcp.json"]]}}
 ];
 
 const STATK = ["ATK","DEF","INT","SPD"];
-const STATN = ["こうげき","しゅび","かしこさ","すばやさ"];
+const STATN = ["つくる","まもる","しらべる","はやさ"];
+const STATD = ["コード・資料・図を作り出す","品質ゲートとレビューで不具合を防ぐ","分析・学習・調べもの","自動化と一括処理で手間を減らす"];
 const STATC = ["var(--rose)","var(--sky)","var(--r4)","var(--mint)"];
 
+/* [条件, 称号, なり方]。上から順に見て、最初に当てはまったものが今の称号 */
 const JOBS = [
- [ids=>ids.length===ITEMS.length,"devtools 大魔導師"],
- [ids=>["ai-coding","dev-environment","agent-lab"].every(x=>ids.includes(x)),"AI エージェント使い"],
- [ids=>["ai-coding","dev-environment"].every(x=>ids.includes(x)),"AI コーディング勇者"],
- [ids=>["office-review","design-diff","doc-to-markdown"].every(x=>ids.includes(x)),"設計書レビュー賢者"],
- [ids=>["office-review","quality-analytics"].every(x=>ids.includes(x)),"品質の占い師"],
- [ids=>["backlog-report","slack-agenda-bot"].every(x=>ids.includes(x)),"プロジェクト番頭"],
- [ids=>["slide-tool","office-replace"].every(x=>ids.includes(x)),"資料錬金術師"],
- [ids=>ids.includes("learning-materials"),"見習いエンジニア"],
- [ids=>ids.includes("devtools-workspace"),"ギルド所属の冒険者"],
- [ids=>ids.length===0,"すっぴんの旅人"],
- [()=>true,"さすらいの SE"]
+ [ids=>ids.length===ITEMS.length,"devtools 大魔導師","全部そうび"],
+ [ids=>["ai-coding","dev-environment","agent-lab"].every(x=>ids.includes(x)),"AI エージェント使い","聖剣・二段構えの鎧・禁書 自律の研究"],
+ [ids=>["ai-coding","dev-environment"].every(x=>ids.includes(x)),"AI コーディング勇者","聖剣・二段構えの鎧"],
+ [ids=>["office-review","design-diff","doc-to-markdown"].every(x=>ids.includes(x)),"設計書レビュー賢者","五賢者の盾・見破りの眼鏡・変換の杖"],
+ [ids=>["office-review","quality-analytics"].every(x=>ids.includes(x)),"品質の占い師","五賢者の盾・分析の水晶玉"],
+ [ids=>["backlog-report","slack-agenda-bot"].every(x=>ids.includes(x)),"プロジェクト番頭","伝令の角笛・議事の使い魔"],
+ [ids=>["slide-tool","office-replace"].every(x=>ids.includes(x)),"資料錬金術師","語り部の魔導書・すり替えの魔法札"],
+ [ids=>ids.includes("learning-materials"),"見習いエンジニア","見習いの教本"],
+ [ids=>ids.includes("devtools-workspace"),"ギルド所属の冒険者","ギルドの大地図"],
+ [ids=>ids.length===0,"すっぴんの旅人","何もそうびしていない"],
+ [()=>true,"さすらいの SE","上のどれにも当てはまらない"]
 ];
 
+/* おすすめセット。[名前, こんな人に, できること, 道具] */
 const SETS = [
- ["新人セット",["devtools-workspace","learning-materials","dev-environment"]],
- ["AI 開発セット",["devtools-workspace","devtools-common","ai-coding","dev-environment","agent-lab"]],
- ["設計レビューセット",["devtools-workspace","devtools-common","doc-to-markdown","office-review","design-diff","quality-analytics"]],
- ["全部そうび",ITEMS.map(i=>i.id)],
- ["ぜんぶはずす",[]]
+ ["新人セット","入ったばかりの人","教材で Java・Spring Boot を学び、手元に開発環境とサンプルアプリを動かす",["devtools-workspace","learning-materials","dev-environment"]],
+ ["AI 開発セット","AI と実装を進める人","設計書からコードと単体テストを AI で作り、品質ゲートで確かめて PR まで出す",["devtools-workspace","devtools-common","ai-coding","dev-environment","agent-lab"]],
+ ["設計レビューセット","設計書をレビューする人","設計書を Markdown にし、新旧差分・AI レビュー・指摘の傾向分析まで回す",["devtools-workspace","devtools-common","doc-to-markdown","office-review","design-diff","quality-analytics"]],
+ ["資料づくりセット","提案書・報告資料を作る人","Markdown でスライドを作り、資料の言葉を一括で置き換え、既存の Office 資料を Markdown に戻す",["devtools-workspace","slide-tool","office-replace","doc-to-markdown"]],
+ ["プロジェクト管理セット","進捗と会議を回す人","Backlog の進捗レポートを Slack・Wiki に流し、定例の議題を Slack で集める",["devtools-workspace","backlog-report","slack-agenda-bot"]]
 ];
+function jobOf(ids){return JOBS.find(([f])=>f(ids))[1]}
 
 /* ---------- 状態 ---------- */
 const store = {
@@ -426,7 +476,7 @@ function drawSprite(cv,pat,pal){const x=cv.getContext("2d");x.clearRect(0,0,16,1
 function eqItems(){return ITEMS.filter(i=>equipped.has(i.id))}
 function totals(){const t=[0,0,0,0];eqItems().forEach(i=>i.st.forEach((v,k)=>t[k]+=v));return t}
 function level(){return 1+eqItems().reduce((s,i)=>s+i.r*2,0)}
-function job(){const ids=[...equipped];return JOBS.find(([f])=>f(ids))[1]}
+function job(){return jobOf([...equipped])}
 
 /* ---------- メッセージ（タイプライター） ---------- */
 let typing=null;
@@ -461,7 +511,7 @@ function renderDetail(){
    <h3 id="dName" style="color:${RC[i.r]}">${esc(i.name)}</h3>
    <div class="meta"><span>${SLOTS[i.slot]}</span>${stars(i.r)}<code>${esc(ORG)}/${esc(i.id)}</code></div></div></div>
   <p class="flavor">${esc(i.flavor)}</p>
-  <div class="stat-row">${i.st.map((v,k)=>`<div><b style="color:${STATC[k]}">+${v}</b><span>${STATK[k]}</span></div>`).join("")}</div>
+  <div class="stat-row" title="ATK つくる・DEF まもる・INT しらべる・SPD はやさ">${i.st.map((v,k)=>`<div><b style="color:${STATC[k]}">+${v}</b><span>${STATK[k]}<br>${STATN[k]}</span></div>`).join("")}</div>
   <button class="equip-btn ${on?"on":""}" id="equipBtn">${on?"はずす":"そうびする"}</button>
   <div class="skill"><h4>装備スキル</h4><p>${esc(i.lore)}<br>${esc(i.skill.p)}</p>
    <ol>${i.skill.steps.map(([t,c])=>`<li><span>${esc(t)}</span>${c?`<div class="cmd"><pre>${esc(c)}</pre><button class="mini" data-copy="${esc(c)}">コピー</button></div>`:""}</li>`).join("")}</ol>
@@ -482,7 +532,23 @@ function renderStatus(){
  const hero=document.getElementById("heroCv");
  const armor=eq.find(i=>i.slot==="armor"), acc=eq.find(i=>i.r===5)||eq[0];
  drawSprite(hero,HERO,{k:"#0b0a20",d:acc?"#f4c45a":"#8a7a5a",w:"#ffd9b8",a:armor?armor.color:"#6b6599",b:"#3b3570",c:acc?acc.color:"#9a94c8"});
- document.getElementById("sets").innerHTML=SETS.map(([n],k)=>`<button data-set="${k}">${n}</button>`).join("");
+ document.getElementById("legend").innerHTML=STATK.map((k,n)=>`<li><b style="color:${STATC[n]}">${k}</b>${STATN[n]}：${STATD[n]}</li>`).join("");
+ const now=job();
+ document.getElementById("dex").innerHTML=JOBS.map(([,n,how])=>`<li aria-current="${n===now}"><b>${esc(n)}</b><span>${esc(how)}</span></li>`).join("");
+ renderSets();
+}
+function renderSets(){
+ const box=document.getElementById("sets");
+ box.innerHTML=SETS.map(([n,who,does,ids],k)=>{
+  const on=ids.length===equipped.size&&ids.every(x=>equipped.has(x));
+  const items=ids.map(x=>ITEMS.find(i=>i.id===x)).filter(Boolean);
+  return `<article class="set${on?" on":""}"><h3>${esc(n)}${on?"<small>そうび中</small>":""}</h3>
+   <dl><dt>こんな人に</dt><dd>${esc(who)}</dd><dt>できること</dt><dd>${esc(does)}</dd>
+   <dt>なれる称号</dt><dd class="job-name">${esc(jobOf(ids))}</dd><dt>中身</dt><dd>${items.length} 点（Lv ${1+items.reduce((s,i)=>s+i.r*2,0)}）</dd></dl>
+   <ul>${items.map(i=>`<li><canvas data-icon="${esc(i.id)}"></canvas><span>${esc(i.name)} <code>${esc(i.id)}</code></span></li>`).join("")}</ul>
+   <button data-set="${k}">${on?"そうび中":"このセットをそうびする"}</button></article>`;
+ }).join("");
+ box.querySelectorAll("canvas[data-icon]").forEach(c=>drawIcon(c,ITEMS.find(i=>i.id===c.dataset.icon)));
 }
 /* 保存先の入力を、シェルが解釈しない文字列の式にして返す（入力は利用者が貼りつけた任意の文字列として扱う）。
    bash: '…' で囲み、' は '\'' にする（$ ` \ " は '…' の中では解釈されない）。先頭の ~ だけ "$HOME" に置き換える。
@@ -537,7 +603,7 @@ function renderMacro(){
  else pre.innerHTML=esc(t).replace(/^(#.*)$/m,'<span class="c">$1</span>');
  document.getElementById("copy").disabled=!t;document.getElementById("save").disabled=!t;
 }
-function renderAll(){renderFilters();renderList();renderDetail();renderStatus();renderMacro();document.getElementById("foot").textContent=ITEMS.length}
+function renderAll(){document.getElementById("repoCount").textContent=ITEMS.length;renderFilters();renderList();renderDetail();renderStatus();renderMacro();document.getElementById("foot").textContent=ITEMS.length}
 
 function persist(){store.set("eq",[...equipped]);store.set("cur",current);store.set("os",os)}
 function afterChange(){
@@ -564,8 +630,10 @@ document.addEventListener("click",async e=>{
   const i=ITEMS.find(x=>x.id===current);say(`${i.name}か。${i.flavor.split("。")[0]}。`);return}
  if(t.id==="equipBtn"){toggle(current);return}
  if(t.dataset.un){toggle(t.dataset.un);return}
- if(t.dataset.set!=null){const [n,ids]=SETS[+t.dataset.set];equipped=new Set(ids);
-  say(ids.length?`「${n}」を まとめて そうびした！`:"ぜんぶ はずして すっぴんに もどった。");afterChange();return}
+ if(t.dataset.set!=null){const [n,,,ids]=SETS[+t.dataset.set];equipped=new Set(ids);
+  say(`「${n}」を まとめて そうびした！ 称号は「${job()}」。`);afterChange();return}
+ if(t.dataset.all!=null){const all=t.dataset.all==="1";equipped=new Set(all?ITEMS.map(i=>i.id):[]);
+  say(all?"全部 そうびした！":"ぜんぶ はずして すっぴんに もどった。");afterChange();return}
  if(t.dataset.os){os=t.dataset.os;persist();renderMacro();return}
  if(t.dataset.copy!=null){copyText(t.dataset.copy,t,null);return}
  if(t.id==="copy"){const m=macroText();if(m)copyText(m,t,document.getElementById("macro"));return}
