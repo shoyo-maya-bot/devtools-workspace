@@ -3,6 +3,14 @@
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/)、版は [SemVer](https://semver.org/lang/ja/) に従います。
 
 
+## 2026-10-28 武具屋：セットと値の意味を見えるように、装備スキルのコマンドを見切れなく
+
+- おすすめセットを、こんな人に・できること・なれる称号・中身（道具とレベル）付きのカードにした。資料づくりセット・プロジェクト管理セットを足した
+- ステータスの ATK・DEF・INT・SPD に意味（つくる・まもる・しらべる・はやさ）を添え、称号の一覧となり方を出した
+- 装備スキルのコマンドを折り返して全部見せ、コピーのボタンが狭い画面でもはみ出さないようにした
+- 装備スキルを各 README に合わせた（ai-coding の導入と 5 フェーズのコマンド、design-diff のサンプル、slide-tool の setup と :trusted、review-platform のトークン）。見出しの件数は ITEMS から数える
+- テスト: セットの道具が ITEMS にあること、称号になり方が書いてあること
+
 ## 2026-10-28 ruff を 0.16 系にそろえる、ドキュメントと動きのずれ（第 8 回）
 
 - 共通 CI（`python-ci.yml`）・`python-release.yml`・`ci.yml` の `RUFF_VERSION` を 0.15.11 から 0.16.10（各ツールの `constraints.txt` と同じ）に上げた。
